@@ -9,7 +9,9 @@ use clap::{command, CommandFactory, Parser};
 use clap_complete::{generate, Shell};
 use dashmap::DashMap;
 use ignore::{WalkBuilder, WalkState};
+use num_format::{Buffer, CustomFormat, Grouping};
 use ptree::TreeItem;
+use tiktoken_rs::o200k_base;
 use tracing_subscriber::EnvFilter;
 
 const BINARY_NAME: &str = "prompt";
@@ -70,13 +72,25 @@ fn main() -> Result<()> {
     tracing::info!("Read {} files", all_files.len());
     let mut output = vec![];
     write_output(all_files, &mut output)?;
+
     let output = String::from_utf8_lossy(&output);
+    let bpe = o200k_base()?;
+    let tokens = bpe.encode_with_special_tokens(&output);
+    let tokens_format = CustomFormat::builder()
+        .grouping(Grouping::Standard) // 1000s separation
+        .separator("_")
+        .build()
+        .unwrap();
+    let mut tokens_formatted = Buffer::default();
+    tokens_formatted.write_formatted(&tokens.len(), &tokens_format);
+
     if cli.copy {
         let mut clipboard = Clipboard::new()?;
         clipboard.set_text(output)?;
     } else {
         print!("{}", output);
     }
+    println!("Tokens: {}", tokens_formatted);
     Ok(())
 }
 
