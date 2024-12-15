@@ -1,7 +1,9 @@
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::vec;
 
 use anyhow::Result;
+use arboard::Clipboard;
 use clap::{command, CommandFactory, Parser};
 use clap_complete::{generate, Shell};
 use dashmap::DashMap;
@@ -16,6 +18,8 @@ struct Cli {
     path: Option<PathBuf>,
     #[arg(long)]
     completions: Option<String>,
+    #[arg(long)]
+    copy: bool,
 }
 
 fn main() -> Result<()> {
@@ -61,7 +65,15 @@ fn main() -> Result<()> {
         });
 
     tracing::info!("Read {} files", all_files.len());
-    print_files(all_files);
+    let mut output = vec![];
+    write_output(all_files, &mut output)?;
+    let output = String::from_utf8_lossy(&output);
+    if cli.copy {
+        let mut clipboard = Clipboard::new()?;
+        clipboard.set_text(output)?;
+    } else {
+        print!("{}", output);
+    }
     Ok(())
 }
 
@@ -93,23 +105,20 @@ fn read_file_sync_with_line_numbers(path: &Path) -> Result<Vec<u8>> {
     Ok(numbered.into_bytes())
 }
 
-fn print_files(all_files: DashMap<PathBuf, Vec<u8>>) {
+fn write_output<W: Write>(all_files: DashMap<PathBuf, Vec<u8>>, mut writer: W) -> Result<()> {
     let mut keys = all_files
         .iter()
         .map(|r| r.key().clone())
         .collect::<Vec<_>>();
     keys.sort();
     for path in keys {
-        println!("{}:", path.display());
-        println!("");
-        println!(
-            "{}",
-            String::from_utf8_lossy(
-                &all_files
-                    .get(&path)
-                    .expect("should be able to get file contents from map")
-            )
-        );
-        println!("---");
+        writeln!(writer, "{}:", path.display())?;
+        writeln!(writer)?;
+        let contents = all_files
+            .get(&path)
+            .expect("should be able to get file contents from map");
+        writeln!(writer, "{}", String::from_utf8_lossy(&contents))?;
+        writeln!(writer, "---")?;
     }
+    Ok(())
 }
