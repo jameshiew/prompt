@@ -49,7 +49,7 @@ fn main() -> Result<()> {
                         all_files.insert(
                             dir_entry.path().to_path_buf(),
                             read_file_sync_with_line_numbers(dir_entry.path())
-                                .unwrap_or_else(|_| vec![]),
+                                .expect("should be able to read file"),
                         );
                     }
                     Err(err) => {
@@ -104,7 +104,11 @@ fn print_files(all_files: DashMap<PathBuf, Vec<u8>>) {
         println!("");
         println!(
             "{}",
-            String::from_utf8_lossy(&all_files.get(&path).unwrap())
+            String::from_utf8_lossy(
+                &all_files
+                    .get(&path)
+                    .expect("should be able to get file contents from map")
+            )
         );
         println!("---");
     }
