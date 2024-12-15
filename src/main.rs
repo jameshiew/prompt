@@ -23,6 +23,16 @@ struct Cli {
     top: Option<u32>,
 }
 
+impl From<Cli> for Settings {
+    fn from(value: Cli) -> Self {
+        Self {
+            path: value.path.unwrap_or_else(|| PathBuf::from(".")),
+            copy: value.copy,
+            top: value.top,
+        }
+    }
+}
+
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
@@ -36,11 +46,6 @@ fn main() -> Result<()> {
         generate(shell, &mut cmd, BINARY_NAME, &mut std::io::stdout());
         return Ok(());
     }
-    let path = cli.path.unwrap_or_else(|| PathBuf::from("."));
 
-    run::start(Settings {
-        path,
-        copy: cli.copy,
-        top: cli.top,
-    })
+    run::start(cli.into())
 }
