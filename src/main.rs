@@ -72,7 +72,8 @@ async fn main() -> Result<()> {
                         }
                         all_files.insert(
                             dir_entry.path().to_path_buf(),
-                            read_file_sync(dir_entry.path()).unwrap_or_else(|_| vec![]),
+                            read_file_sync_with_line_numbers(dir_entry.path())
+                                .unwrap_or_else(|_| vec![]),
                         );
                     }
                     Err(err) => {
@@ -93,6 +94,27 @@ fn read_file_sync(path: &Path) -> Result<Vec<u8>> {
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
     Ok(buffer)
+}
+
+fn read_file_sync_with_line_numbers(path: &Path) -> Result<Vec<u8>> {
+    let buffer = read_file_sync(path)?;
+    let text = String::from_utf8_lossy(&buffer);
+    let line_count = text.lines().count();
+    if line_count == 0 {
+        return Ok(Vec::new());
+    }
+
+    let digits = ((line_count as f64).log10().floor() as usize) + 1;
+    let width = digits;
+
+    let mut numbered = String::new();
+    for (i, line) in text.lines().enumerate() {
+        let line_num = i + 1;
+        // Right-align the line number within the given width
+        numbered.push_str(&format!("{:>width$} {}\n", line_num, line, width = width));
+    }
+
+    Ok(numbered.into_bytes())
 }
 
 fn print_files(all_files: DashMap<PathBuf, Vec<u8>>) {
