@@ -7,6 +7,7 @@ use anyhow::Result;
 use arboard::Clipboard;
 use clap::{command, CommandFactory, Parser};
 use clap_complete::{generate, Shell};
+use dashmap::mapref::multiple::RefMulti;
 use dashmap::DashMap;
 use ignore::{WalkBuilder, WalkState};
 use num_format::{Buffer, CustomFormat, Grouping};
@@ -27,6 +28,47 @@ struct Cli {
     copy: bool,
 }
 
+/// Information collected about a read file.
+#[derive(Default, Clone)]
+struct FileInfo {
+    bytes: Vec<u8>,
+}
+
+impl FileInfo {
+    fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+#[derive(Default)]
+struct Files {
+    inner: DashMap<PathBuf, FileInfo>,
+}
+
+impl Files {
+    fn insert(&self, path: PathBuf, info: FileInfo) {
+        self.inner.insert(path, info);
+    }
+
+    fn get(&self, path: &Path) -> Option<FileInfo> {
+        match self.inner.get(path) {
+            Some(v) => {
+                let v = v.value();
+                Some(v.clone())
+            }
+            None => None,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn iter(&self) -> impl Iterator<Item = RefMulti<PathBuf, FileInfo>> {
+        self.inner.iter()
+    }
+}
+
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
@@ -37,13 +79,12 @@ fn main() -> Result<()> {
 
     if let Some(shell) = cli.completions {
         let mut cmd = Cli::command();
-        // let shell = shell.parse::<Shell>().expect("invalid shell name");
         generate(shell, &mut cmd, BINARY_NAME, &mut std::io::stdout());
         return Ok(());
     }
 
     let path = cli.path.unwrap_or_else(|| PathBuf::from("."));
-    let all_files = DashMap::new();
+    let all_files = Files::default();
 
     WalkBuilder::new(&path)
         .add_custom_ignore_filename(".promptignore")
@@ -57,8 +98,10 @@ fn main() -> Result<()> {
                         }
                         all_files.insert(
                             dir_entry.path().to_path_buf(),
-                            read_file_sync_with_line_numbers(dir_entry.path())
-                                .expect("should be able to read file"),
+                            FileInfo {
+                                bytes: read_file_sync_with_line_numbers(dir_entry.path())
+                                    .expect("should be able to read file"),
+                            },
                         );
                     }
                     Err(err) => {
@@ -171,10 +214,7 @@ impl TreeItem for FileNode {
     }
 }
 
-fn write_output<W: Write>(
-    all_files: dashmap::DashMap<PathBuf, Vec<u8>>,
-    mut writer: W,
-) -> Result<()> {
+fn write_output<W: Write>(all_files: Files, mut writer: W) -> Result<()> {
     let mut keys = all_files
         .iter()
         .map(|r| r.key().clone())
@@ -207,10 +247,10 @@ fn write_output<W: Write>(
     for path in keys.iter() {
         writeln!(writer, "{}:", path.display())?;
         writeln!(writer)?;
-        let contents = all_files
+        let info = all_files
             .get(path)
             .expect("should be able to get file contents from map");
-        writeln!(writer, "{}", String::from_utf8_lossy(&contents))?;
+        writeln!(writer, "{}", String::from_utf8_lossy(info.bytes()))?;
         writeln!(writer, "---")?;
     }
     writeln!(writer, "Files:")?;
