@@ -27,15 +27,20 @@ async fn main() -> Result<()> {
     if metadata.is_dir() {
         read_files_iteratively(&path, &mut all_files).await?;
     } else if metadata.is_file() {
-        let mut file = fs::File::open(&path).await?;
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).await?;
-        all_files.push((path, buffer));
+        let content = read_file(&path).await?;
+        all_files.push((path, content));
     }
 
     tracing::info!("Read {} files into memory.", all_files.len());
     print_files(all_files);
     Ok(())
+}
+
+async fn read_file(path: &Path) -> Result<Vec<u8>> {
+    let mut file = fs::File::open(path).await?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer).await?;
+    Ok(buffer)
 }
 
 async fn read_files_iteratively(
@@ -53,10 +58,8 @@ async fn read_files_iteratively(
             if file_type.is_dir() {
                 stack.push(file_path);
             } else if file_type.is_file() {
-                let mut file = fs::File::open(&file_path).await?;
-                let mut buffer = Vec::new();
-                file.read_to_end(&mut buffer).await?;
-                all_files.push((file_path, buffer));
+                let content = read_file(&file_path).await?;
+                all_files.push((file_path, content));
             }
         }
     }
