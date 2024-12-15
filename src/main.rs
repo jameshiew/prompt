@@ -60,7 +60,7 @@ fn main() -> Result<()> {
             })
         });
 
-    // tracing::info!("Read {} files into memory.", all_files.len());
+    tracing::info!("Read {} files", all_files.len());
     print_files(all_files);
     Ok(())
 }
