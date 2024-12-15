@@ -26,6 +26,8 @@ struct Cli {
     completions: Option<Shell>,
     #[arg(long, help = "Copy output straight to the clipboard")]
     copy: bool,
+    #[arg(long, value_name = "COUNT", help = "List top files by token count")]
+    top: Option<u32>,
 }
 
 /// Information collected about a read file.
@@ -138,7 +140,7 @@ fn main() -> Result<()> {
 
     tracing::info!("Read {} files", all_files.len());
     let mut output = vec![];
-    write_output(all_files, &mut output)?;
+    write_output(&mut output, all_files, cli.top)?;
 
     let output = String::from_utf8_lossy(&output);
     let tokens = {
@@ -261,7 +263,7 @@ impl TreeItem for FileNode {
     }
 }
 
-fn write_output<W: Write>(all_files: Files, mut writer: W) -> Result<()> {
+fn write_output<W: Write>(mut writer: W, all_files: Files, top: Option<u32>) -> Result<()> {
     let mut keys = all_files
         .iter()
         .map(|r| r.key().clone())
@@ -308,6 +310,21 @@ fn write_output<W: Write>(all_files: Files, mut writer: W) -> Result<()> {
     writeln!(writer, "{}", tree_str)?;
     writeln!(writer)?;
     writeln!(writer, "{} files", keys.len())?;
+
+    if let Some(top) = top {
+        let mut total = 0;
+        let mut sorted = infos
+            .iter()
+            .map(|(path, info)| (path, info.token_count))
+            .collect::<Vec<_>>();
+        sorted.sort_by(|a, b| b.1.cmp(&a.1));
+        for (path, token_count) in sorted.into_iter().take(top as usize) {
+            let path = path.as_path();
+            writeln!(writer, "{}: {} tokens", path.display(), token_count)?;
+            total += token_count;
+        }
+        writeln!(writer, "{} total tokens", total)?;
+    }
 
     Ok(())
 }
