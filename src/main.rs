@@ -9,7 +9,6 @@ use tracing_subscriber::EnvFilter;
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
-    #[arg(short, long)]
     path: Option<PathBuf>,
 }
 
