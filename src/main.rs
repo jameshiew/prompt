@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::vec;
@@ -12,7 +12,7 @@ use dashmap::DashMap;
 use ignore::{WalkBuilder, WalkState};
 use num_format::{Buffer, CustomFormat, Grouping};
 use ptree::TreeItem;
-use tiktoken_rs::o200k_base;
+use tiktoken_rs::o200k_base_singleton;
 use tracing_subscriber::EnvFilter;
 
 const BINARY_NAME: &str = "prompt";
@@ -29,14 +29,43 @@ struct Cli {
 }
 
 /// Information collected about a read file.
-#[derive(Default, Clone)]
+#[derive(Debug)]
 struct FileInfo {
-    bytes: Vec<u8>,
+    utf8: String,
+    token_count: usize,
 }
 
 impl FileInfo {
-    fn bytes(&self) -> &[u8] {
-        &self.bytes
+    fn new(bytes: Vec<u8>) -> Result<Self> {
+        // TODO: binary detection
+        let utf8 = String::from_utf8_lossy(&bytes).to_string();
+        let tokens = {
+            let bpe = o200k_base_singleton();
+            let bpe = bpe.lock();
+            bpe.encode_with_special_tokens(&utf8)
+        };
+
+        Ok(Self {
+            token_count: tokens.len(),
+            utf8,
+        })
+    }
+
+    fn utf8(&self) -> &str {
+        &self.utf8
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct FileMeta {
+    token_count: usize,
+}
+
+impl From<&FileInfo> for FileMeta {
+    fn from(info: &FileInfo) -> Self {
+        Self {
+            token_count: info.token_count,
+        }
     }
 }
 
@@ -50,14 +79,8 @@ impl Files {
         self.inner.insert(path, info);
     }
 
-    fn get(&self, path: &Path) -> Option<FileInfo> {
-        match self.inner.get(path) {
-            Some(v) => {
-                let v = v.value();
-                Some(v.clone())
-            }
-            None => None,
-        }
+    fn remove(&self, path: &Path) -> Option<FileInfo> {
+        self.inner.remove(path).map(|(_, info)| info)
     }
 
     fn len(&self) -> usize {
@@ -98,10 +121,11 @@ fn main() -> Result<()> {
                         }
                         all_files.insert(
                             dir_entry.path().to_path_buf(),
-                            FileInfo {
-                                bytes: read_file_sync_with_line_numbers(dir_entry.path())
+                            FileInfo::new(
+                                read_file_sync_with_line_numbers(dir_entry.path())
                                     .expect("should be able to read file"),
-                            },
+                            )
+                            .expect("should be able to create file info"),
                         );
                     }
                     Err(err) => {
@@ -117,8 +141,11 @@ fn main() -> Result<()> {
     write_output(all_files, &mut output)?;
 
     let output = String::from_utf8_lossy(&output);
-    let bpe = o200k_base()?;
-    let tokens = bpe.encode_with_special_tokens(&output);
+    let tokens = {
+        let bpe = o200k_base_singleton();
+        let bpe = bpe.lock();
+        bpe.encode_with_special_tokens(&output)
+    };
     let tokens_format = CustomFormat::builder()
         .grouping(Grouping::Standard) // 1000s separation
         .separator("_")
@@ -168,31 +195,39 @@ fn read_file_sync_with_line_numbers(path: &Path) -> Result<Vec<u8>> {
 #[derive(Debug, Clone)]
 struct FileNode {
     name: String,
+    meta: Option<FileMeta>,
     children: BTreeMap<String, FileNode>,
 }
 
 impl FileNode {
-    fn new(name: &str) -> Self {
+    fn new(name: &str, meta: Option<FileMeta>) -> Self {
         Self {
             name: name.to_string(),
             children: BTreeMap::new(),
+            meta,
         }
     }
 
-    fn insert_path(&mut self, path: &[&str]) {
-        if path.is_empty() {
+    fn insert_path(&mut self, components: &[&str], meta: Option<FileMeta>) {
+        if components.is_empty() {
             return;
         }
 
-        let part = path[0];
-        let is_last = path.len() == 1;
-        let entry = self
-            .children
-            .entry(part.to_string())
-            .or_insert_with(|| FileNode::new(part));
+        let name = components[0];
+        let is_last = components.len() == 1;
+
+        let entry = self.children.entry(name.to_string());
+        let entry = if is_last {
+            // file node
+            entry.or_insert_with(|| FileNode::new(name, meta))
+        } else {
+            // directory node
+            entry.or_insert_with(|| FileNode::new(name, None))
+        };
 
         if !is_last {
-            entry.insert_path(&path[1..]);
+            // keep passing info down until final file node reached
+            entry.insert_path(&components[1..], meta);
         }
     }
 }
@@ -205,7 +240,19 @@ impl TreeItem for FileNode {
         f: &mut W,
         style: &ptree::Style,
     ) -> std::io::Result<()> {
-        write!(f, "{}", style.paint(&self.name))
+        match &self.meta {
+            Some(meta) => {
+                write!(
+                    f,
+                    "{} ({} tokens)",
+                    style.paint(&self.name),
+                    meta.token_count
+                )
+            }
+            None => {
+                write!(f, "{}", style.paint(&self.name))
+            }
+        }
     }
 
     fn children(&self) -> std::borrow::Cow<[Self::Child]> {
@@ -222,8 +269,13 @@ fn write_output<W: Write>(all_files: Files, mut writer: W) -> Result<()> {
     keys.sort();
 
     // Build a tree of files collected
-    let mut root = FileNode::new(".");
-    for path in &keys {
+    let mut infos: HashMap<PathBuf, FileInfo> = HashMap::default();
+    let mut root = FileNode::new(".", None);
+    for path in keys.iter() {
+        let info = all_files
+            .remove(path)
+            .expect("should be able to get file contents from map");
+
         let mut components = path
             .components()
             .filter_map(|c| c.as_os_str().to_str())
@@ -236,21 +288,19 @@ fn write_output<W: Write>(all_files: Files, mut writer: W) -> Result<()> {
             }
         }
 
-        root.insert_path(&components);
+        root.insert_path(&components, Some((&info).into()));
+        infos.insert(path.clone(), info);
     }
 
     let mut tree_buf = Vec::new();
     ptree::write_tree_with(&root, &mut tree_buf, &ptree::PrintConfig::default())?;
     let tree_str = String::from_utf8_lossy(&tree_buf);
 
-    // Now proceed with writing out the file contents as before
     for path in keys.iter() {
+        let info = infos.get(path).expect("should be able to get file info");
         writeln!(writer, "{}:", path.display())?;
         writeln!(writer)?;
-        let info = all_files
-            .get(path)
-            .expect("should be able to get file contents from map");
-        writeln!(writer, "{}", String::from_utf8_lossy(info.bytes()))?;
+        writeln!(writer, "{}", info.utf8())?;
         writeln!(writer, "---")?;
     }
     writeln!(writer, "Files:")?;
