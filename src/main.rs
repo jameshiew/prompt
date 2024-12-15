@@ -15,10 +15,11 @@ const BINARY_NAME: &str = "prompt";
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
+    #[arg(help = "Path to the file or directory to read into a prompt")]
     path: Option<PathBuf>,
-    #[arg(long)]
-    completions: Option<String>,
-    #[arg(long)]
+    #[arg(long, value_name = "SHELL", help = "Generate shell completions")]
+    completions: Option<Shell>,
+    #[arg(long, help = "Copy output straight to the clipboard")]
     copy: bool,
 }
 
@@ -32,7 +33,7 @@ fn main() -> Result<()> {
 
     if let Some(shell) = cli.completions {
         let mut cmd = Cli::command();
-        let shell = shell.parse::<Shell>().expect("invalid shell name");
+        // let shell = shell.parse::<Shell>().expect("invalid shell name");
         generate(shell, &mut cmd, BINARY_NAME, &mut std::io::stdout());
         return Ok(());
     }
