@@ -1,10 +1,10 @@
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::{command, Parser};
-use serde::{Deserialize, Serialize};
-use tokio::fs;
-use tokio::io::AsyncReadExt;
+use dashmap::DashMap;
+use ignore::{WalkBuilder, WalkState};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
@@ -13,78 +13,64 @@ struct Cli {
     path: Option<PathBuf>,
 }
 
-#[derive(Serialize, Deserialize)]
-struct Config {
-    ignore: Vec<String>,
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .try_init()
         .expect("should be able to initialize the logger");
-
-    let cfg_path = PathBuf::from(".prompt.toml");
-    if cfg_path.exists() {
-        let bytes = read_file(&cfg_path).await?;
-        let content = String::from_utf8_lossy(&bytes);
-        let cfg: Config = toml::from_str(&content)?;
-        tracing::info!("Ignore patterns: {}", cfg.ignore.join(", "));
-    }
     let cli = Cli::parse();
     let path = cli.path.unwrap_or_else(|| PathBuf::from("."));
-    let mut all_files = Vec::new();
+    let all_files = DashMap::new();
 
-    read_files_iteratively(path.as_path(), &mut all_files).await?;
+    WalkBuilder::new(&path)
+        .add_custom_ignore_filename(".promptignore")
+        .build_parallel()
+        .run(|| {
+            Box::new(|result| {
+                match result {
+                    Ok(dir_entry) => {
+                        if dir_entry.path().is_dir() {
+                            return WalkState::Continue;
+                        }
+                        all_files.insert(
+                            dir_entry.path().to_path_buf(),
+                            read_file_sync(dir_entry.path()).unwrap_or_else(|_| vec![]),
+                        );
+                    }
+                    Err(err) => {
+                        panic!("Error reading file: {}", err);
+                    }
+                }
+                WalkState::Continue
+            })
+        });
 
-    tracing::info!("Read {} files into memory.", all_files.len());
+    // tracing::info!("Read {} files into memory.", all_files.len());
     print_files(all_files);
     Ok(())
 }
 
-async fn read_file(path: &Path) -> Result<Vec<u8>> {
-    let mut file = fs::File::open(path).await?;
+fn read_file_sync(path: &Path) -> Result<Vec<u8>> {
+    let mut file = std::fs::File::open(path)?;
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).await?;
+    file.read_to_end(&mut buffer)?;
     Ok(buffer)
 }
 
-async fn read_files_iteratively(
-    path: &Path,
-    all_files: &mut Vec<(PathBuf, Vec<u8>)>,
-) -> Result<()> {
-    let mut stack = vec![path.to_path_buf()];
-
-    while let Some(current_path) = stack.pop() {
-        let metadata = current_path.metadata()?;
-        if metadata.is_dir() {
-            let mut dir = fs::read_dir(&current_path).await?;
-            while let Some(entry) = dir.next_entry().await? {
-                let file_type = entry.file_type().await?;
-                let file_path = entry.path();
-
-                if file_type.is_dir() {
-                    stack.push(file_path);
-                } else if file_type.is_file() {
-                    let content = read_file(&file_path).await?;
-                    all_files.push((file_path, content));
-                }
-            }
-        } else if metadata.is_file() {
-            let content = read_file(&path).await?;
-            all_files.push((current_path, content));
-        }
-    }
-
-    Ok(())
-}
-
-fn print_files(all_files: Vec<(PathBuf, Vec<u8>)>) {
-    for (path, buffer) in all_files {
+fn print_files(all_files: DashMap<PathBuf, Vec<u8>>) {
+    let mut keys = all_files
+        .iter()
+        .map(|r| r.key().clone())
+        .collect::<Vec<_>>();
+    keys.sort();
+    for path in keys {
         println!("{}:", path.display());
         println!("");
-        println!("{}", String::from_utf8_lossy(&buffer));
+        println!(
+            "{}",
+            String::from_utf8_lossy(&all_files.get(&path).unwrap())
+        );
         println!("---");
     }
 }
