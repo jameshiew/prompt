@@ -10,11 +10,5 @@ clap_complete = "4.5.38"
 dashmap = "6.1.0"
 gix = "0.68.0"
 ignore = "0.4.23"
-tokio = { version = "1.42.0", features = [
-    "macros",
-    "rt-multi-thread",
-    "fs",
-    "io-util",
-] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
