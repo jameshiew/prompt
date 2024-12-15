@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::{command, Parser};
+use serde::{Deserialize, Serialize};
 use tokio::fs;
 use tokio::io::AsyncReadExt;
 use tracing_subscriber::EnvFilter;
@@ -12,6 +13,11 @@ struct Cli {
     path: Option<PathBuf>,
 }
 
+#[derive(Serialize, Deserialize)]
+struct Config {
+    ignore: Vec<String>,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -19,6 +25,13 @@ async fn main() -> Result<()> {
         .try_init()
         .expect("should be able to initialize the logger");
 
+    let cfg_path = PathBuf::from(".prompt.toml");
+    if cfg_path.exists() {
+        let bytes = read_file(&cfg_path).await?;
+        let content = String::from_utf8_lossy(&bytes);
+        let cfg: Config = toml::from_str(&content)?;
+        tracing::info!("Ignore patterns: {}", cfg.ignore.join(", "));
+    }
     let cli = Cli::parse();
     let path = cli.path.unwrap_or_else(|| PathBuf::from("."));
     let mut all_files = Vec::new();
