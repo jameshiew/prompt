@@ -23,13 +23,7 @@ async fn main() -> Result<()> {
     let path = cli.path.unwrap_or_else(|| PathBuf::from("."));
     let mut all_files = Vec::new();
 
-    let metadata = path.metadata()?;
-    if metadata.is_dir() {
-        read_files_iteratively(&path, &mut all_files).await?;
-    } else if metadata.is_file() {
-        let content = read_file(&path).await?;
-        all_files.push((path, content));
-    }
+    read_files_iteratively(path.as_path(), &mut all_files).await?;
 
     tracing::info!("Read {} files into memory.", all_files.len());
     print_files(all_files);
@@ -50,17 +44,23 @@ async fn read_files_iteratively(
     let mut stack = vec![path.to_path_buf()];
 
     while let Some(current_path) = stack.pop() {
-        let mut dir = fs::read_dir(&current_path).await?;
-        while let Some(entry) = dir.next_entry().await? {
-            let file_type = entry.file_type().await?;
-            let file_path = entry.path();
+        let metadata = current_path.metadata()?;
+        if metadata.is_dir() {
+            let mut dir = fs::read_dir(&current_path).await?;
+            while let Some(entry) = dir.next_entry().await? {
+                let file_type = entry.file_type().await?;
+                let file_path = entry.path();
 
-            if file_type.is_dir() {
-                stack.push(file_path);
-            } else if file_type.is_file() {
-                let content = read_file(&file_path).await?;
-                all_files.push((file_path, content));
+                if file_type.is_dir() {
+                    stack.push(file_path);
+                } else if file_type.is_file() {
+                    let content = read_file(&file_path).await?;
+                    all_files.push((file_path, content));
+                }
             }
+        } else if metadata.is_file() {
+            let content = read_file(&path).await?;
+            all_files.push((current_path, content));
         }
     }
 
