@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::vec;
@@ -8,6 +9,7 @@ use clap::{command, CommandFactory, Parser};
 use clap_complete::{generate, Shell};
 use dashmap::DashMap;
 use ignore::{WalkBuilder, WalkState};
+use ptree::TreeItem;
 use tracing_subscriber::EnvFilter;
 
 const BINARY_NAME: &str = "prompt";
@@ -106,21 +108,102 @@ fn read_file_sync_with_line_numbers(path: &Path) -> Result<Vec<u8>> {
     Ok(numbered.into_bytes())
 }
 
-fn write_output<W: Write>(all_files: DashMap<PathBuf, Vec<u8>>, mut writer: W) -> Result<()> {
+#[derive(Debug, Clone)]
+struct FileNode {
+    name: String,
+    children: BTreeMap<String, FileNode>,
+}
+
+impl FileNode {
+    fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            children: BTreeMap::new(),
+        }
+    }
+
+    fn insert_path(&mut self, path: &[&str]) {
+        if path.is_empty() {
+            return;
+        }
+
+        let part = path[0];
+        let is_last = path.len() == 1;
+        let entry = self
+            .children
+            .entry(part.to_string())
+            .or_insert_with(|| FileNode::new(part));
+
+        if !is_last {
+            entry.insert_path(&path[1..]);
+        }
+    }
+}
+
+impl TreeItem for FileNode {
+    type Child = FileNode;
+
+    fn write_self<W: std::io::Write>(
+        &self,
+        f: &mut W,
+        style: &ptree::Style,
+    ) -> std::io::Result<()> {
+        write!(f, "{}", style.paint(&self.name))
+    }
+
+    fn children(&self) -> std::borrow::Cow<[Self::Child]> {
+        let children = self.children.values().cloned().collect::<Vec<FileNode>>();
+        std::borrow::Cow::Owned(children)
+    }
+}
+
+fn write_output<W: Write>(
+    all_files: dashmap::DashMap<PathBuf, Vec<u8>>,
+    mut writer: W,
+) -> Result<()> {
     let mut keys = all_files
         .iter()
         .map(|r| r.key().clone())
         .collect::<Vec<_>>();
     keys.sort();
-    tracing::debug!(?keys, "Read files");
-    for path in keys {
+
+    // Build a tree of files collected
+    let mut root = FileNode::new(".");
+    for path in &keys {
+        let mut components = path
+            .components()
+            .filter_map(|c| c.as_os_str().to_str())
+            .collect::<Vec<_>>();
+
+        // Remove leading "./" since the root node is the "."
+        if let Some(first) = components.first() {
+            if *first == "." {
+                components.remove(0);
+            }
+        }
+
+        root.insert_path(&components);
+    }
+
+    let mut tree_buf = Vec::new();
+    ptree::write_tree_with(&root, &mut tree_buf, &ptree::PrintConfig::default())?;
+    let tree_str = String::from_utf8_lossy(&tree_buf);
+
+    // Now proceed with writing out the file contents as before
+    for path in keys.iter() {
         writeln!(writer, "{}:", path.display())?;
         writeln!(writer)?;
         let contents = all_files
-            .get(&path)
+            .get(path)
             .expect("should be able to get file contents from map");
         writeln!(writer, "{}", String::from_utf8_lossy(&contents))?;
         writeln!(writer, "---")?;
     }
+    writeln!(writer, "Files:")?;
+    writeln!(writer)?;
+    writeln!(writer, "{}", tree_str)?;
+    writeln!(writer)?;
+    writeln!(writer, "{} files", keys.len())?;
+
     Ok(())
 }
