@@ -17,7 +17,7 @@ use crate::settings::Settings;
 #[derive(Debug)]
 struct FileInfo {
     utf8: String,
-    token_count: usize,
+    meta: FileMeta,
 }
 
 impl FileInfo {
@@ -29,15 +29,19 @@ impl FileInfo {
             let bpe = bpe.lock();
             bpe.encode_with_special_tokens(&utf8)
         };
-
-        Ok(Self {
+        let meta = FileMeta {
             token_count: tokens.len(),
-            utf8,
-        })
+        };
+
+        Ok(Self { meta, utf8 })
     }
 
     fn utf8(&self) -> &str {
         &self.utf8
+    }
+
+    fn meta(&self) -> &FileMeta {
+        &self.meta
     }
 }
 
@@ -46,11 +50,9 @@ struct FileMeta {
     token_count: usize,
 }
 
-impl From<&FileInfo> for FileMeta {
-    fn from(info: &FileInfo) -> Self {
-        Self {
-            token_count: info.token_count,
-        }
+impl FileMeta {
+    fn token_count(&self) -> usize {
+        self.token_count
     }
 }
 
@@ -260,7 +262,7 @@ fn write_output<W: Write>(mut writer: W, all_files: Files, top: Option<u32>) -> 
             }
         }
 
-        root.insert_path(&components, Some((&info).into()));
+        root.insert_path(&components, Some(*info.meta()));
         infos.insert(path.clone(), info);
     }
 
@@ -285,7 +287,7 @@ fn write_output<W: Write>(mut writer: W, all_files: Files, top: Option<u32>) -> 
         let mut total = 0;
         let mut sorted = infos
             .iter()
-            .map(|(path, info)| (path, info.token_count))
+            .map(|(path, info)| (path, info.meta().token_count()))
             .collect::<Vec<_>>();
         sorted.sort_by(|a, b| b.1.cmp(&a.1));
         for (path, token_count) in sorted.into_iter().take(top as usize) {
