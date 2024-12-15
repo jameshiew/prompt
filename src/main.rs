@@ -2,10 +2,13 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use clap::{command, Parser};
+use clap::{command, CommandFactory, Parser};
+use clap_complete::{generate, Shell};
 use dashmap::DashMap;
 use ignore::{WalkBuilder, WalkState};
 use tracing_subscriber::EnvFilter;
+
+const BINARY_NAME: &str = "prompt";
 
 #[derive(Parser)]
 #[command(version)]
@@ -13,6 +16,8 @@ struct Cli {
     path: Option<PathBuf>,
     #[arg(short, long)]
     git: Option<String>,
+    #[arg(long)]
+    completions: Option<String>,
 }
 
 #[tokio::main]
@@ -21,7 +26,16 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .try_init()
         .expect("should be able to initialize the logger");
+
     let cli = Cli::parse();
+
+    if let Some(shell) = cli.completions {
+        let mut cmd = Cli::command();
+        let shell = shell.parse::<Shell>().expect("invalid shell name");
+        generate(shell, &mut cmd, BINARY_NAME, &mut std::io::stdout());
+        return Ok(());
+    }
+
     let path = cli.path.unwrap_or_else(|| PathBuf::from("."));
 
     if let Some(revspec) = cli.git {
