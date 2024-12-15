@@ -112,6 +112,7 @@ fn write_output<W: Write>(all_files: DashMap<PathBuf, Vec<u8>>, mut writer: W) -
         .map(|r| r.key().clone())
         .collect::<Vec<_>>();
     keys.sort();
+    tracing::debug!(?keys, "Read files");
     for path in keys {
         writeln!(writer, "{}:", path.display())?;
         writeln!(writer)?;
