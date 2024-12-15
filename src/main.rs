@@ -4,6 +4,7 @@ use anyhow::Result;
 use clap::{command, Parser};
 use tokio::fs;
 use tokio::io::AsyncReadExt;
+use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
 #[command(version)]
@@ -14,6 +15,11 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .try_init()
+        .expect("should be able to initialize the logger");
+
     let cli = Cli::parse();
     let path = cli.path.unwrap_or_else(|| PathBuf::from("."));
 
@@ -21,7 +27,7 @@ async fn main() -> Result<()> {
 
     read_files_iteratively(&path, &mut all_files).await?;
 
-    println!("Read {} files into memory.", all_files.len());
+    tracing::info!("Read {} files into memory.", all_files.len());
     Ok(())
 }
 
