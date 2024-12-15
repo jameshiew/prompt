@@ -21,10 +21,17 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
     let path = cli.path.unwrap_or_else(|| PathBuf::from("."));
-
     let mut all_files = Vec::new();
 
-    read_files_iteratively(&path, &mut all_files).await?;
+    let metadata = path.metadata()?;
+    if metadata.is_dir() {
+        read_files_iteratively(&path, &mut all_files).await?;
+    } else if metadata.is_file() {
+        let mut file = fs::File::open(&path).await?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).await?;
+        all_files.push((path, buffer));
+    }
 
     tracing::info!("Read {} files into memory.", all_files.len());
     Ok(())
