@@ -6,3 +6,6 @@ install:
 
 fmt:
     cargo +nightly fmt
+
+help:
+    cargo run -- --help
