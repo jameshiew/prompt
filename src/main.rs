@@ -34,6 +34,7 @@ async fn main() -> Result<()> {
     }
 
     tracing::info!("Read {} files into memory.", all_files.len());
+    print_files(all_files);
     Ok(())
 }
 
@@ -61,4 +62,13 @@ async fn read_files_iteratively(
     }
 
     Ok(())
+}
+
+fn print_files(all_files: Vec<(PathBuf, Vec<u8>)>) {
+    for (path, buffer) in all_files {
+        println!("{}:", path.display());
+        println!("");
+        println!("{}", String::from_utf8_lossy(&buffer));
+        println!("---");
+    }
 }
