@@ -1,2 +1,4 @@
 Cargo.lock
 LICENSE.txt
+justfile
+rustfmt.toml
