@@ -2,7 +2,7 @@ run:
     cargo run
 
 install:
-    cargo install --path .
+    RUSTFLAGS="-C target-cpu=native" cargo install --profile installation --path .
 
 fmt:
     cargo +nightly fmt
