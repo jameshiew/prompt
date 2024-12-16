@@ -55,7 +55,6 @@ pub fn start(
 
     let output = String::from_utf8_lossy(&prompt);
     let total_tokens = total_tokens(&output);
-    writeln!(stderr, "Total tokens: {}", total_tokens)?;
 
     if copy {
         let mut clipboard = Clipboard::new()?;
@@ -63,6 +62,8 @@ pub fn start(
     } else {
         print!("{}", output);
     }
+
+    writeln!(stderr, "{} total tokens", total_tokens)?;
 
     Ok(())
 }
