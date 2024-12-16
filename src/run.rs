@@ -7,7 +7,7 @@ use ignore::WalkBuilder;
 use num_format::{Buffer, CustomFormat, Grouping};
 use tiktoken_rs::o200k_base_singleton;
 
-use crate::files::Files;
+use crate::files::{strip_dot_prefix, Files};
 use crate::settings::Settings;
 use crate::tree::FiletreeNode;
 
@@ -27,9 +27,7 @@ pub fn start(
         .run(|| {
             let exclude = Arc::clone(&exclude);
             files.mkf(move |path| {
-                let path = path
-                    .strip_prefix(".")
-                    .expect("should be able to strip prefix");
+                let path = strip_dot_prefix(path);
                 exclude.iter().any(|pattern| pattern.matches_path(path))
             })
         });

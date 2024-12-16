@@ -140,3 +140,7 @@ pub fn read_file_sync(path: &Path) -> anyhow::Result<Vec<u8>> {
     file.read_to_end(&mut buffer)?;
     Ok(buffer)
 }
+
+pub fn strip_dot_prefix(path: &Path) -> &Path {
+    path.strip_prefix(".").unwrap_or(path)
+}

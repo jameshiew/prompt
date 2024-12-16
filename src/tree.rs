@@ -5,7 +5,7 @@ use anyhow::Result;
 use crossterm::style::Stylize;
 use ptree::TreeItem;
 
-use crate::files::{FileMeta, Files};
+use crate::files::{strip_dot_prefix, FileMeta, Files};
 
 #[derive(Debug, Clone)]
 pub(crate) struct FiletreeNode {
@@ -117,7 +117,7 @@ impl TryFrom<&Files> for FiletreeNode {
                 .meta();
 
             // Remove leading "./" since the root node is the "."
-            let path = path.strip_prefix(".")?;
+            let path = strip_dot_prefix(&path);
 
             let components = path
                 .components()
