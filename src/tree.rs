@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use anyhow::Result;
+use crossterm::style::Stylize;
 use ptree::TreeItem;
 
 use crate::files::{FileMeta, Files};
@@ -71,12 +72,18 @@ impl TreeItem for FiletreeNode {
     ) -> std::io::Result<()> {
         match &self.meta {
             Some(meta) => {
-                write!(
-                    f,
-                    "{} ({} tokens)",
-                    style.paint(&self.name),
-                    meta.token_count()
-                )
+                let text = if !meta.excluded() {
+                    format!(
+                        "{} ({} tokens)",
+                        style.paint(&self.name),
+                        meta.token_count()
+                    )
+                } else {
+                    let text = format!("{} (excluded)", style.paint(&self.name));
+                    let text = text.red();
+                    text.to_string()
+                };
+                write!(f, "{}", style.paint(text))
             }
             None => {
                 write!(f, "{}", style.paint(&self.name))

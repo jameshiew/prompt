@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use dashmap::mapref::multiple::RefMulti;
 use dashmap::mapref::one::Ref;
 use dashmap::DashMap;
-use ignore::{WalkParallel, WalkState};
+use ignore::{DirEntry, Error, WalkState};
 use tiktoken_rs::o200k_base_singleton;
 
 /// Information collected about a read file.
@@ -16,7 +16,7 @@ pub(crate) struct FileInfo {
 }
 
 impl FileInfo {
-    pub(crate) fn new(utf8: String) -> anyhow::Result<Self> {
+    pub(crate) fn new(utf8: String, excluded: bool) -> anyhow::Result<Self> {
         // TODO: binary detection
         let tokens = {
             let bpe = o200k_base_singleton();
@@ -25,6 +25,7 @@ impl FileInfo {
         };
         let meta = FileMeta {
             token_count: tokens.len(),
+            excluded,
         };
 
         Ok(Self { meta, utf8 })
@@ -41,12 +42,17 @@ impl FileInfo {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct FileMeta {
+    excluded: bool,
     token_count: usize,
 }
 
 impl FileMeta {
     pub(crate) fn token_count(&self) -> usize {
         self.token_count
+    }
+
+    pub(crate) fn excluded(&self) -> bool {
+        self.excluded
     }
 }
 
@@ -71,37 +77,41 @@ impl Files {
     pub(crate) fn iter(&self) -> impl Iterator<Item = RefMulti<PathBuf, FileInfo>> {
         self.inner.iter()
     }
-}
 
-impl From<WalkParallel> for Files {
-    fn from(walk: WalkParallel) -> Self {
-        let files = Files {
-            inner: DashMap::new(),
-        };
-        walk.run(|| {
-            Box::new(|result| {
-                match result {
-                    Ok(dir_entry) => {
-                        let path = dir_entry.path();
-                        if path.is_dir() || path.is_symlink() {
-                            return WalkState::Continue;
-                        }
+    pub(crate) fn mkf<'a, F>(
+        &'a self,
+        exclude: F,
+    ) -> Box<dyn FnMut(Result<DirEntry, Error>) -> WalkState + Send + 'a>
+    where
+        F: Fn(&Path) -> bool + Send + Sync + 'a,
+    {
+        Box::new(move |result| {
+            match result {
+                Ok(dir_entry) => {
+                    let path = dir_entry.path();
+                    if path.is_dir() || path.is_symlink() {
+                        return WalkState::Continue;
+                    }
+                    if exclude(path) {
+                        let info = FileInfo::new("".to_string(), true)
+                            .expect("should be able to create file info");
+                        self.insert(path.to_path_buf(), info);
+                        return WalkState::Continue;
+                    }
 
-                        let buffer = read_file_sync(path).expect("should be able to read file");
-                        let text = String::from_utf8_lossy(&buffer);
-                        let content = annotate_line_numbers(text);
-                        let info =
-                            FileInfo::new(content).expect("should be able to create file info");
-                        files.insert(path.to_path_buf(), info);
-                    }
-                    Err(err) => {
-                        panic!("Error reading file: {}", err);
-                    }
+                    let buffer = read_file_sync(path).expect("should be able to read file");
+                    let text = String::from_utf8_lossy(&buffer);
+                    let content = annotate_line_numbers(text);
+                    let info =
+                        FileInfo::new(content, false).expect("should be able to create file info");
+                    self.insert(path.to_path_buf(), info);
                 }
-                WalkState::Continue
-            })
-        });
-        files
+                Err(err) => {
+                    panic!("Error reading file: {}", err);
+                }
+            }
+            WalkState::Continue
+        })
     }
 }
 

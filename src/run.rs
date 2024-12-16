@@ -10,11 +10,34 @@ use crate::files::Files;
 use crate::settings::Settings;
 use crate::tree::FiletreeNode;
 
-pub fn start(Settings { path, copy, top }: Settings) -> Result<()> {
-    let files: Files = WalkBuilder::new(&path)
+pub fn start(
+    Settings {
+        path,
+        copy,
+        top,
+        exclude,
+    }: Settings,
+) -> Result<()> {
+    let files = Files::default();
+    WalkBuilder::new(&path)
         .add_custom_ignore_filename(".promptignore")
         .build_parallel()
-        .into();
+        .run(|| {
+            files.mkf({
+                let exclude = exclude.clone();
+                move |path| {
+                    for pattern in &exclude {
+                        let path = path
+                            .strip_prefix(".")
+                            .expect("should be able to strip prefix");
+                        if pattern.matches_path(path) {
+                            return true;
+                        }
+                    }
+                    false
+                }
+            })
+        });
 
     if let Some(count) = top {
         write_top(stdout(), &files, count)?;

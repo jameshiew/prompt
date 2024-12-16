@@ -21,6 +21,14 @@ struct Cli {
     copy: bool,
     #[arg(long, value_name = "COUNT", help = "List top files by token count")]
     top: Option<u32>,
+    #[arg(
+        short,
+        long,
+        value_name = "PATTERNS",
+        value_delimiter = ',',
+        help = "Glob patterns to exclude from the prompt, separated by commas"
+    )]
+    exclude: Vec<glob::Pattern>,
 }
 
 impl From<Cli> for Settings {
@@ -29,6 +37,7 @@ impl From<Cli> for Settings {
             path: value.path.unwrap_or_else(|| PathBuf::from(".")),
             copy: value.copy,
             top: value.top,
+            exclude: value.exclude,
         }
     }
 }
