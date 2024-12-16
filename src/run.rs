@@ -1,4 +1,5 @@
 use std::io::{stderr, stdout, Write};
+use std::sync::Arc;
 
 use anyhow::Result;
 use arboard::Clipboard;
@@ -19,23 +20,17 @@ pub fn start(
     }: Settings,
 ) -> Result<()> {
     let files = Files::default();
+    let exclude = Arc::new(exclude);
     WalkBuilder::new(&path)
         .add_custom_ignore_filename(".promptignore")
         .build_parallel()
         .run(|| {
-            files.mkf({
-                let exclude = exclude.clone();
-                move |path| {
-                    for pattern in &exclude {
-                        let path = path
-                            .strip_prefix(".")
-                            .expect("should be able to strip prefix");
-                        if pattern.matches_path(path) {
-                            return true;
-                        }
-                    }
-                    false
-                }
+            let exclude = Arc::clone(&exclude);
+            files.mkf(move |path| {
+                let path = path
+                    .strip_prefix(".")
+                    .expect("should be able to strip prefix");
+                exclude.iter().any(|pattern| pattern.matches_path(path))
             })
         });
 
