@@ -1,25 +1,22 @@
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
 use arboard::Clipboard;
+use glob::Pattern;
 use ignore::WalkBuilder;
 use num_format::{Buffer, CustomFormat, Grouping};
 use tiktoken_rs::o200k_base_singleton;
 
 use crate::files::{strip_dot_prefix, Files};
-use crate::settings::Settings;
 use crate::tree::FiletreeNode;
 
-pub fn start(
-    Settings {
-        path,
-        extra_paths,
-        stdout,
-        top,
-        exclude,
-    }: Settings,
-) -> Result<()> {
+pub fn walk_files(
+    path: PathBuf,
+    extra_paths: Vec<PathBuf>,
+    exclude: Vec<Pattern>,
+) -> Result<Files> {
     let files = Files::default();
     let exclude = Arc::new(exclude);
 
@@ -37,12 +34,24 @@ pub fn start(
             exclude.iter().any(|pattern| pattern.matches_path(path))
         })
     });
+    Ok(files)
+}
 
+pub fn count(files: Files, top: Option<u32>) -> Result<()> {
     if let Some(count) = top {
         write_top(std::io::stdout(), &files, count)?;
-        return Ok(());
+    } else {
+        let total_tokens = files
+            .iter()
+            .map(|r| r.value().meta().token_count())
+            .sum::<usize>();
+        let total_tokens = total_tokens.to_string();
+        println!("Total tokens: {}", total_tokens);
     }
+    Ok(())
+}
 
+pub fn output(files: Files, stdout: bool) -> Result<()> {
     let tree = FiletreeNode::try_from(&files)?;
 
     let mut prompt = vec![];

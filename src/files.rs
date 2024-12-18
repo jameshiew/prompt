@@ -57,7 +57,7 @@ impl FileMeta {
 }
 
 #[derive(Default)]
-pub(crate) struct Files {
+pub struct Files {
     inner: DashMap<PathBuf, FileInfo>,
 }
 

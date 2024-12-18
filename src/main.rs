@@ -1,58 +1,67 @@
 use std::path::PathBuf;
 
-use anyhow::Result;
-use clap::{CommandFactory, Parser};
+use anyhow::{bail, Result};
+use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
-use prompt::run;
-use prompt::settings::Settings;
+use prompt::run::{self, walk_files};
 use tracing_subscriber::EnvFilter;
 
 const BINARY_NAME: &str = "prompt";
 
 #[derive(Parser)]
-#[command(version)]
+#[command(version, subcommand_required = false)]
 struct Cli {
-    #[arg(long, value_name = "SHELL", help = "Generate shell completions")]
-    completions: Option<Shell>,
-
+    #[clap(subcommand)]
+    command: Option<Command>,
     #[arg(
+        short,
+        long,
+        global = true,
+        num_args = 1..,
+        value_name = "PATH",
         help = "Paths to the files/directories for reading into a prompt",
         default_value = "."
     )]
     paths: Vec<PathBuf>,
-    #[arg(long, help = "Print prompt to stdout without any summary")]
-    stdout: bool,
     #[arg(
+        short,
+        long,
+        global = true,
+        num_args = 1..,
+        value_name = "PATTERN",
+        help = "Glob patterns to exclude from the prompt, separated by commas"
+    )]
+    exclude: Vec<glob::Pattern>,
+}
+
+#[derive(Debug, Subcommand, Clone)]
+enum Command {
+    /// Generate shell completions
+    ShellCompletions {
+        #[arg()]
+        shell: Shell,
+    },
+    /// Output a prompt that includes matching files (copies to clipboard by default)
+    Output {
+        #[arg(long, help = "Print prompt to stdout without any summary")]
+        stdout: bool,
+    },
+    /// Count tokens from matching files
+    Count {
+        #[arg(
         long,
         value_name = "COUNT",
         help = "List top files by token count",
         default_missing_value = "10",
         num_args = 0..=1
     )]
-    top: Option<u32>,
-    #[arg(
-        short,
-        long,
-        value_name = "PATTERNS",
-        value_delimiter = ',',
-        help = "Glob patterns to exclude from the prompt, separated by commas"
-    )]
-    exclude: Vec<glob::Pattern>,
+        top: Option<u32>,
+    },
 }
 
-impl From<Cli> for Settings {
-    fn from(value: Cli) -> Self {
-        let (first_path, rest_paths) = value
-            .paths
-            .split_first()
-            .expect("should have at least one path");
-        Self {
-            path: first_path.clone(),
-            extra_paths: rest_paths.to_vec(),
-            stdout: value.stdout,
-            top: value.top,
-            exclude: value.exclude,
-        }
+impl Default for Command {
+    fn default() -> Self {
+        Command::Output { stdout: false }
     }
 }
 
@@ -64,11 +73,19 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    if let Some(shell) = cli.completions {
-        let mut cmd = Cli::command();
-        generate(shell, &mut cmd, BINARY_NAME, &mut std::io::stdout());
-        return Ok(());
-    }
+    let Some((first_path, rest_paths)) = cli.paths.split_first() else {
+        bail!("No paths provided")
+    };
+    let files = walk_files(first_path.clone(), rest_paths.to_vec(), cli.exclude)?;
 
-    run::start(cli.into())
+    let command = cli.command.unwrap_or_default();
+    match command {
+        Command::ShellCompletions { shell } => {
+            let mut cmd = Cli::command();
+            generate(shell, &mut cmd, BINARY_NAME, &mut std::io::stdout());
+            Ok(())
+        }
+        Command::Output { stdout } => run::output(files, stdout),
+        Command::Count { top } => run::count(files, top),
+    }
 }

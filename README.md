@@ -5,12 +5,9 @@ Reads files from the current directory into a prompt, respecting .gitignore and 
 ## Basic usage
 
 ```shell
-prompt  # copies straight to clipboard
-prompt --stdout  # prints to stdout without summary
-```
-
-```shell
-prompt src/ app/ README.md
+prompt output # copies straight to clipboard
+prompt output --stdout  # prints to stdout without summary
+prompt output -p src/ app/ -e out/  # include/exclude certain paths
 ```
 
 ## Suggested .promptignore in home directory
