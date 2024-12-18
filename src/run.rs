@@ -14,6 +14,7 @@ use crate::tree::FiletreeNode;
 pub fn start(
     Settings {
         path,
+        extra_paths,
         stdout,
         top,
         exclude,
@@ -21,16 +22,21 @@ pub fn start(
 ) -> Result<()> {
     let files = Files::default();
     let exclude = Arc::new(exclude);
-    WalkBuilder::new(&path)
-        .add_custom_ignore_filename(".promptignore")
-        .build_parallel()
-        .run(|| {
-            let exclude = Arc::clone(&exclude);
-            files.mkf(move |path| {
-                let path = strip_dot_prefix(path);
-                exclude.iter().any(|pattern| pattern.matches_path(path))
-            })
-        });
+
+    let mut walker = WalkBuilder::new(path.clone());
+    walker.add_custom_ignore_filename(".promptignore");
+    for path in extra_paths {
+        walker.add(path);
+    }
+    let walker = walker.build_parallel();
+
+    walker.run(|| {
+        let exclude = Arc::clone(&exclude);
+        files.mkf(move |path| {
+            let path = strip_dot_prefix(path);
+            exclude.iter().any(|pattern| pattern.matches_path(path))
+        })
+    });
 
     if let Some(count) = top {
         write_top(std::io::stdout(), &files, count)?;

@@ -9,6 +9,10 @@ prompt  # copies straight to clipboard
 prompt --stdout  # prints to stdout without summary
 ```
 
+```shell
+prompt src/ app/ README.md
+```
+
 ## Suggested .promptignore in home directory
 
 ```

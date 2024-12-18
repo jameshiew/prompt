@@ -15,8 +15,11 @@ struct Cli {
     #[arg(long, value_name = "SHELL", help = "Generate shell completions")]
     completions: Option<Shell>,
 
-    #[arg(help = "Path to the file or directory to read into a prompt")]
-    path: Option<PathBuf>,
+    #[arg(
+        help = "Paths to the files/directories for reading into a prompt",
+        default_value = "."
+    )]
+    paths: Vec<PathBuf>,
     #[arg(long, help = "Print prompt to stdout without any summary")]
     stdout: bool,
     #[arg(
@@ -39,8 +42,13 @@ struct Cli {
 
 impl From<Cli> for Settings {
     fn from(value: Cli) -> Self {
+        let (first_path, rest_paths) = value
+            .paths
+            .split_first()
+            .expect("should have at least one path");
         Self {
-            path: value.path.unwrap_or_else(|| PathBuf::from(".")),
+            path: first_path.clone(),
+            extra_paths: rest_paths.to_vec(),
             stdout: value.stdout,
             top: value.top,
             exclude: value.exclude,
