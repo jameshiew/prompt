@@ -19,7 +19,13 @@ struct Cli {
     path: Option<PathBuf>,
     #[arg(long, help = "Copy output straight to the clipboard")]
     copy: bool,
-    #[arg(long, value_name = "COUNT", help = "List top files by token count")]
+    #[arg(
+        long,
+        value_name = "COUNT",
+        help = "List top files by token count",
+        default_missing_value = "10",
+        num_args = 0..=1
+    )]
     top: Option<u32>,
     #[arg(
         short,
