@@ -55,6 +55,7 @@ pub fn output(files: Files, stdout: bool) -> Result<()> {
     let tree = FiletreeNode::try_from(&files)?;
 
     let mut prompt = vec![];
+    let excluded = files.excluded();
 
     write_filetree(&mut prompt, &tree)?;
     write_files_content(&mut prompt, files)?;
@@ -71,6 +72,7 @@ pub fn output(files: Files, stdout: bool) -> Result<()> {
     clipboard.set_text(output)?;
     write_filetree(std::io::stdout(), &tree)?;
     println!("{} total tokens copied", total_tokens);
+    println!("Excluded: {:?}", excluded);
 
     Ok(())
 }

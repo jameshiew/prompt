@@ -49,6 +49,7 @@ impl FiletreeNode {
         let entry = self.children.entry(name.to_string());
         let entry = if is_last {
             // file node
+            let meta = meta.clone();
             entry.or_insert_with(|| FiletreeNode::new(name, meta))
         } else {
             // directory node
@@ -56,7 +57,6 @@ impl FiletreeNode {
         };
 
         if !is_last {
-            // keep passing info down until final file node reached
             entry.insert_path(&components[1..], meta);
         }
     }
@@ -78,6 +78,13 @@ impl TreeItem for FiletreeNode {
                         style.paint(&self.name),
                         meta.token_count()
                     )
+                } else if meta.binary_detected() {
+                    let text = format!(
+                        "{} (auto-excluded, binary detected)",
+                        style.paint(&self.name)
+                    );
+                    let text = text.yellow();
+                    text.to_string()
                 } else {
                     let text = format!("{} (excluded)", style.paint(&self.name));
                     let text = text.red();
@@ -110,11 +117,12 @@ impl TryFrom<&Files> for FiletreeNode {
         // Build a tree of files collected
         let mut root = FiletreeNode::new(".", None);
         for path in paths {
-            let meta = *files
+            let meta = files
                 .get(&path)
                 .expect("should be able to get file contents from map")
                 .value()
-                .meta();
+                .meta()
+                .clone();
 
             // Remove leading "./" since the root node is the "."
             let path = strip_dot_prefix(&path);

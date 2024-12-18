@@ -13,6 +13,7 @@ readme = "README.md"
 [dependencies]
 anyhow = "1.0.94"
 arboard = "3.4.1"
+bindet = { version = "0.3.2", features = ["mime", "mediatype"] }
 clap = { version = "4.5.23", features = ["derive"] }
 clap_complete = "4.5.38"
 crossterm = "0.28.1"

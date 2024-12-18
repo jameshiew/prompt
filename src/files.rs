@@ -1,5 +1,6 @@
 use std::borrow::Cow;
-use std::io::Read;
+use std::fs::OpenOptions;
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use dashmap::mapref::multiple::RefMulti;
@@ -16,19 +17,53 @@ pub(crate) struct FileInfo {
 }
 
 impl FileInfo {
-    pub(crate) fn new(utf8: String, excluded: bool) -> anyhow::Result<Self> {
+    pub(crate) fn new(path: PathBuf, excluded: bool) -> anyhow::Result<Self> {
+        if excluded {
+            return Ok(Self {
+                meta: FileMeta {
+                    path,
+                    binary_detected: false,
+                    token_count: 0,
+                    excluded,
+                },
+                utf8: "".to_string(),
+            });
+        }
+
+        let file = OpenOptions::new().read(true).open(&path)?;
+        let buf = BufReader::new(file);
+        if (bindet::detect(buf)?).is_some() {
+            return Ok(Self {
+                meta: FileMeta {
+                    path,
+                    binary_detected: true,
+                    token_count: 0,
+                    excluded: true,
+                },
+                utf8: "".to_string(),
+            });
+        };
+
+        let buffer = read_file_sync(&path)?;
+        let text = String::from_utf8_lossy(&buffer);
+        let content = annotate_line_numbers(text);
         // TODO: binary detection
         let tokens = {
             let bpe = o200k_base_singleton();
             let bpe = bpe.lock();
-            bpe.encode_with_special_tokens(&utf8)
+            bpe.encode_with_special_tokens(&content)
         };
         let meta = FileMeta {
+            path,
+            binary_detected: false,
             token_count: tokens.len(),
             excluded,
         };
 
-        Ok(Self { meta, utf8 })
+        Ok(Self {
+            meta,
+            utf8: content,
+        })
     }
 
     pub(crate) fn utf8(&self) -> &str {
@@ -40,13 +75,23 @@ impl FileInfo {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct FileMeta {
+    path: PathBuf,
     excluded: bool,
+    binary_detected: bool,
     token_count: usize,
 }
 
 impl FileMeta {
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub(crate) fn binary_detected(&self) -> bool {
+        self.binary_detected
+    }
+
     pub(crate) fn token_count(&self) -> usize {
         self.token_count
     }
@@ -88,23 +133,14 @@ impl Files {
         Box::new(move |result| {
             match result {
                 Ok(dir_entry) => {
-                    let path = dir_entry.path();
+                    let path = dir_entry.path().to_owned();
                     if path.is_dir() || path.is_symlink() {
                         return WalkState::Continue;
                     }
-                    if exclude(path) {
-                        let info = FileInfo::new("".to_string(), true)
-                            .expect("should be able to create file info");
-                        self.insert(path.to_path_buf(), info);
-                        return WalkState::Continue;
-                    }
-
-                    let buffer = read_file_sync(path).expect("should be able to read file");
-                    let text = String::from_utf8_lossy(&buffer);
-                    let content = annotate_line_numbers(text);
-                    let info =
-                        FileInfo::new(content, false).expect("should be able to create file info");
-                    self.insert(path.to_path_buf(), info);
+                    let excluded = exclude(&path);
+                    let info = FileInfo::new(path.clone(), excluded)
+                        .expect("should be able to create file info");
+                    self.insert(path, info);
                 }
                 Err(err) => {
                     panic!("Error reading file: {}", err);
@@ -112,6 +148,20 @@ impl Files {
             }
             WalkState::Continue
         })
+    }
+
+    pub(crate) fn excluded(&self) -> Vec<PathBuf> {
+        self.inner
+            .iter()
+            .filter_map(|entry| {
+                let (_, info) = entry.pair();
+                if info.meta().excluded() {
+                    Some(info.meta().path().to_owned())
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }
 
