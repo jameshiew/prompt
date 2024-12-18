@@ -4,9 +4,9 @@ Reads files from the current directory into a prompt, respecting .gitignore and 
 
 ## Basic usage
 
-```
-prompt  # print to stdout
-prompt --copy  # copies straight to clipboard
+```shell
+prompt  # copies straight to clipboard
+prompt --stdout  # prints to stdout without summary
 ```
 
 ## Suggested .promptignore in home directory

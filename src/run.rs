@@ -1,4 +1,4 @@
-use std::io::{stderr, stdout, Write};
+use std::io::Write;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -14,7 +14,7 @@ use crate::tree::FiletreeNode;
 pub fn start(
     Settings {
         path,
-        copy,
+        stdout,
         top,
         exclude,
     }: Settings,
@@ -33,30 +33,29 @@ pub fn start(
         });
 
     if let Some(count) = top {
-        write_top(stdout(), &files, count)?;
+        write_top(std::io::stdout(), &files, count)?;
         return Ok(());
     }
 
     let tree = FiletreeNode::try_from(&files)?;
 
     let mut prompt = vec![];
-    let mut stderr = stderr();
 
     write_files_content(&mut prompt, files)?;
     write_filetree(&mut prompt, &tree)?;
-    write_filetree(&mut stderr, &tree)?;
 
     let output = String::from_utf8_lossy(&prompt);
     let total_tokens = total_tokens(&output);
 
-    if copy {
-        let mut clipboard = Clipboard::new()?;
-        clipboard.set_text(output)?;
-    } else {
+    if stdout {
         print!("{}", output);
+        return Ok(());
     }
 
-    writeln!(stderr, "{} total tokens", total_tokens)?;
+    let mut clipboard = Clipboard::new()?;
+    clipboard.set_text(output)?;
+    write_filetree(std::io::stdout(), &tree)?;
+    println!("{} total tokens copied", total_tokens);
 
     Ok(())
 }

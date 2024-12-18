@@ -17,8 +17,8 @@ struct Cli {
 
     #[arg(help = "Path to the file or directory to read into a prompt")]
     path: Option<PathBuf>,
-    #[arg(long, help = "Copy output straight to the clipboard")]
-    copy: bool,
+    #[arg(long, help = "Print prompt to stdout without any summary")]
+    stdout: bool,
     #[arg(
         long,
         value_name = "COUNT",
@@ -41,7 +41,7 @@ impl From<Cli> for Settings {
     fn from(value: Cli) -> Self {
         Self {
             path: value.path.unwrap_or_else(|| PathBuf::from(".")),
-            copy: value.copy,
+            stdout: value.stdout,
             top: value.top,
             exclude: value.exclude,
         }
