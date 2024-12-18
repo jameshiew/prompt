@@ -91,6 +91,9 @@ fn write_files_content(mut writer: impl Write, files: Files) -> Result<()> {
     paths.sort();
     for path in paths.iter() {
         let info = files.remove(path).expect("should be able to get file info");
+        if info.meta().excluded() {
+            continue;
+        }
         writeln!(writer, "{}:", path.display())?;
         writeln!(writer)?;
         writeln!(writer, "{}", info.utf8())?;
