@@ -101,7 +101,8 @@ fn write_files_content(mut writer: impl Write, files: Files) -> Result<()> {
 }
 
 fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
-    let mut total = 0;
+    let mut top_total = 0;
+    let mut top_file_count = 0; // track this in case there are less files in total than top
     let mut sorted = files.iter().collect::<Vec<_>>();
     sorted.sort_by(|a, b| {
         b.value()
@@ -113,11 +114,16 @@ fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
         let path = entry.key();
         let token_count = entry.value().meta().token_count();
         writeln!(writer, "{}: {} tokens", path.display(), token_count)?;
-        total += token_count;
+        top_total += token_count;
+        top_file_count += 1;
     }
     writeln!(writer)?;
-    writeln!(writer, "{} files", sorted.len())?;
-    writeln!(writer, "{} total tokens", total)?;
+    writeln!(
+        writer,
+        "{} top files ({} tokens)",
+        top_file_count, top_total
+    )?;
+    writeln!(writer, "{} files total", sorted.len())?;
 
     Ok(())
 }
