@@ -41,8 +41,8 @@ pub fn start(
 
     let mut prompt = vec![];
 
-    write_files_content(&mut prompt, files)?;
     write_filetree(&mut prompt, &tree)?;
+    write_files_content(&mut prompt, files)?;
 
     let output = String::from_utf8_lossy(&prompt);
     let total_tokens = total_tokens(&output);
