@@ -3,11 +3,13 @@ use std::fs::OpenOptions;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
+use anyhow::Result;
 use dashmap::mapref::multiple::RefMulti;
 use dashmap::mapref::one::Ref;
 use dashmap::DashMap;
-use ignore::{DirEntry, Error, WalkState};
 use tiktoken_rs::o200k_base_singleton;
+
+use crate::discovery::DiscoveredFile;
 
 /// Information collected about a read file.
 #[derive(Debug)]
@@ -107,6 +109,16 @@ pub struct Files {
 }
 
 impl Files {
+    pub fn read_from(discovered: Vec<DiscoveredFile>) -> Result<Self> {
+        let files = Self::default();
+        discovered.into_iter().try_for_each(|disc| {
+            let info = FileInfo::new(disc.path.clone(), disc.excluded)?;
+            files.insert(disc.path, info);
+            Ok::<(), anyhow::Error>(())
+        })?;
+        Ok(files)
+    }
+
     fn insert(&self, path: PathBuf, info: FileInfo) {
         self.inner.insert(path, info);
     }
@@ -121,33 +133,6 @@ impl Files {
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = RefMulti<PathBuf, FileInfo>> {
         self.inner.iter()
-    }
-
-    pub(crate) fn mkf<'a, F>(
-        &'a self,
-        exclude: F,
-    ) -> Box<dyn FnMut(Result<DirEntry, Error>) -> WalkState + Send + 'a>
-    where
-        F: Fn(&Path) -> bool + Send + Sync + 'a,
-    {
-        Box::new(move |result| {
-            match result {
-                Ok(dir_entry) => {
-                    let path = dir_entry.path().to_owned();
-                    if path.is_dir() || path.is_symlink() {
-                        return WalkState::Continue;
-                    }
-                    let excluded = exclude(&path);
-                    let info = FileInfo::new(path.clone(), excluded)
-                        .expect("should be able to create file info");
-                    self.insert(path, info);
-                }
-                Err(err) => {
-                    panic!("Error reading file: {}", err);
-                }
-            }
-            WalkState::Continue
-        })
     }
 
     pub(crate) fn excluded(&self) -> Vec<PathBuf> {

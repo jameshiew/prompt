@@ -1,41 +1,12 @@
 use std::io::Write;
-use std::path::PathBuf;
-use std::sync::Arc;
 
 use anyhow::Result;
 use arboard::Clipboard;
-use glob::Pattern;
-use ignore::WalkBuilder;
 use num_format::{Buffer, CustomFormat, Grouping};
 use tiktoken_rs::o200k_base_singleton;
 
-use crate::files::{strip_dot_prefix, Files};
+use crate::files::Files;
 use crate::tree::FiletreeNode;
-
-pub fn walk_files(
-    path: PathBuf,
-    extra_paths: Vec<PathBuf>,
-    exclude: Vec<Pattern>,
-) -> Result<Files> {
-    let files = Files::default();
-    let exclude = Arc::new(exclude);
-
-    let mut walker = WalkBuilder::new(path.clone());
-    walker.add_custom_ignore_filename(".promptignore");
-    for path in extra_paths {
-        walker.add(path);
-    }
-    let walker = walker.build_parallel();
-
-    walker.run(|| {
-        let exclude = Arc::clone(&exclude);
-        files.mkf(move |path| {
-            let path = strip_dot_prefix(path);
-            exclude.iter().any(|pattern| pattern.matches_path(path))
-        })
-    });
-    Ok(files)
-}
 
 pub fn count(files: Files, top: Option<u32>) -> Result<()> {
     if let Some(count) = top {

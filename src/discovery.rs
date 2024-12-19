@@ -1,0 +1,55 @@
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use anyhow::Result;
+use dashmap::DashSet;
+use ignore::{WalkBuilder, WalkState};
+
+use crate::files::strip_dot_prefix;
+
+#[derive(Debug, Eq, PartialEq, Hash)]
+pub struct DiscoveredFile {
+    pub path: PathBuf,
+    pub excluded: bool,
+}
+
+/// Returns a sorted [`Vec`] of [`DiscoveredFile`]s
+pub fn discover(
+    path: PathBuf,
+    extra_paths: Vec<PathBuf>,
+    exclude: Vec<glob::Pattern>,
+) -> Result<Vec<DiscoveredFile>> {
+    let exclude = Arc::new(exclude);
+    let mut walker = WalkBuilder::new(path.clone());
+    for path in extra_paths {
+        walker.add(path);
+    }
+    walker.add_custom_ignore_filename(".promptignore");
+    let walker = walker.build_parallel();
+
+    // TODO: use channel to collect results and return early error
+    let discovered = DashSet::new();
+    walker.run(|| {
+        Box::new(|result| match result {
+            Ok(dir_entry) => {
+                let path = dir_entry.path().to_owned();
+                if path.is_dir() || path.is_symlink() {
+                    return WalkState::Continue;
+                }
+                let path = strip_dot_prefix(&path);
+                let excluded = exclude.iter().any(|pattern| pattern.matches_path(path));
+                discovered.insert(DiscoveredFile {
+                    path: path.to_owned(),
+                    excluded,
+                });
+                WalkState::Continue
+            }
+            Err(err) => {
+                panic!("Error reading file: {}", err);
+            }
+        })
+    });
+    let mut discovered: Vec<_> = discovered.into_iter().collect();
+    discovered.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(discovered)
+}

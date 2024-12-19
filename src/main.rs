@@ -3,7 +3,9 @@ use std::path::PathBuf;
 use anyhow::{bail, Result};
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
-use prompt::run::{self, walk_files};
+use prompt::discovery::discover;
+use prompt::files::Files;
+use prompt::run::{self};
 use tracing_subscriber::EnvFilter;
 
 const BINARY_NAME: &str = "prompt";
@@ -76,7 +78,8 @@ fn main() -> Result<()> {
     let Some((first_path, rest_paths)) = cli.paths.split_first() else {
         bail!("No paths provided")
     };
-    let files = walk_files(first_path.clone(), rest_paths.to_vec(), cli.exclude)?;
+    let discovered = discover(first_path.clone(), rest_paths.to_vec(), cli.exclude)?;
+    let files = Files::read_from(discovered)?;
 
     let command = cli.command.unwrap_or_default();
     match command {
