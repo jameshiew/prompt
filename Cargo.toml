@@ -21,6 +21,7 @@ dashmap = "6.1.0"
 glob = "0.3.1"
 ignore = "0.4.23"
 ptree = "0.5.2"
+text-splitter = { version = "0.20.0", features = ["tiktoken-rs"] }
 tiktoken-rs = "0.6.0"
 tokio = { version = "1.42.0", features = ["macros", "rt-multi-thread", "fs"] }
 tracing = "0.1.41"
