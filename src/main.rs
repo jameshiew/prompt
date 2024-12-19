@@ -67,7 +67,8 @@ impl Default for Command {
     }
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .try_init()
@@ -79,7 +80,7 @@ fn main() -> Result<()> {
         bail!("No paths provided")
     };
     let discovered = discover(first_path.clone(), rest_paths.to_vec(), cli.exclude)?;
-    let files = Files::read_from(discovered)?;
+    let files = Files::read_from(discovered).await?;
 
     let command = cli.command.unwrap_or_default();
     match command {

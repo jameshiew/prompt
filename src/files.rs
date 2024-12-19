@@ -1,12 +1,13 @@
 use std::borrow::Cow;
 use std::fs::OpenOptions;
-use std::io::{BufReader, Read};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use dashmap::mapref::multiple::RefMulti;
 use dashmap::mapref::one::Ref;
 use dashmap::DashMap;
+use tokio::fs;
 
 use crate::discovery::DiscoveredFile;
 use crate::tokenizer::tokenize;
@@ -19,7 +20,7 @@ pub(crate) struct FileInfo {
 }
 
 impl FileInfo {
-    pub(crate) fn new(path: PathBuf, excluded: bool) -> anyhow::Result<Self> {
+    pub(crate) async fn new(path: PathBuf, excluded: bool) -> anyhow::Result<Self> {
         if excluded {
             return Ok(Self {
                 meta: FileMeta {
@@ -46,7 +47,7 @@ impl FileInfo {
             });
         };
 
-        let buffer = read_file_sync(&path)?;
+        let buffer = fs::read(&path).await?;
         let text = String::from_utf8_lossy(&buffer);
         let content = annotate_line_numbers(text);
         let tokens = tokenize(&content);
@@ -104,13 +105,12 @@ pub struct Files {
 }
 
 impl Files {
-    pub fn read_from(discovered: Vec<DiscoveredFile>) -> Result<Self> {
+    pub async fn read_from(discovered: Vec<DiscoveredFile>) -> Result<Self> {
         let files = Self::default();
-        discovered.into_iter().try_for_each(|disc| {
-            let info = FileInfo::new(disc.path.clone(), disc.excluded)?;
+        for disc in discovered {
+            let info = FileInfo::new(disc.path.clone(), disc.excluded).await?;
             files.insert(disc.path, info);
-            Ok::<(), anyhow::Error>(())
-        })?;
+        }
         Ok(files)
     }
 
@@ -162,13 +162,6 @@ fn annotate_line_numbers(text: Cow<str>) -> String {
     }
 
     numbered
-}
-
-pub fn read_file_sync(path: &Path) -> anyhow::Result<Vec<u8>> {
-    let mut file = std::fs::File::open(path)?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)?;
-    Ok(buffer)
 }
 
 pub fn strip_dot_prefix(path: &Path) -> &Path {
