@@ -2,10 +2,9 @@ use std::io::Write;
 
 use anyhow::Result;
 use arboard::Clipboard;
-use num_format::{Buffer, CustomFormat, Grouping};
-use tiktoken_rs::o200k_base_singleton;
 
 use crate::files::Files;
+use crate::tokenizer::tokenize;
 use crate::tree::FiletreeNode;
 
 pub fn count(files: Files, top: Option<u32>) -> Result<()> {
@@ -32,7 +31,7 @@ pub fn output(files: Files, stdout: bool) -> Result<()> {
     write_files_content(&mut prompt, files)?;
 
     let output = String::from_utf8_lossy(&prompt);
-    let total_tokens = total_tokens(&output);
+    let total_tokens = tokenize(&output);
 
     if stdout {
         print!("{}", output);
@@ -42,28 +41,10 @@ pub fn output(files: Files, stdout: bool) -> Result<()> {
     let mut clipboard = Clipboard::new()?;
     clipboard.set_text(output)?;
     write_filetree(std::io::stdout(), &tree)?;
-    println!("{} total tokens copied", total_tokens);
+    println!("{} total tokens copied", total_tokens.len());
     println!("Excluded: {:?}", excluded);
 
     Ok(())
-}
-
-fn total_tokens(text: &str) -> String {
-    let tokens = {
-        let bpe = o200k_base_singleton();
-        let bpe = bpe.lock();
-        bpe.encode_with_special_tokens(text)
-    };
-
-    let tokens_format = CustomFormat::builder()
-        .grouping(Grouping::Standard) // 1000s separation
-        .separator("_")
-        .build()
-        .expect("should be able to build tokens format");
-    let mut tokens_formatted = Buffer::default();
-    tokens_formatted.write_formatted(&tokens.len(), &tokens_format);
-
-    tokens_formatted.to_string()
 }
 
 fn write_filetree(mut writer: impl Write, tree: &FiletreeNode) -> Result<()> {

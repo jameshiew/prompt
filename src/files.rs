@@ -7,9 +7,9 @@ use anyhow::Result;
 use dashmap::mapref::multiple::RefMulti;
 use dashmap::mapref::one::Ref;
 use dashmap::DashMap;
-use tiktoken_rs::o200k_base_singleton;
 
 use crate::discovery::DiscoveredFile;
+use crate::tokenizer::tokenize;
 
 /// Information collected about a read file.
 #[derive(Debug)]
@@ -49,12 +49,7 @@ impl FileInfo {
         let buffer = read_file_sync(&path)?;
         let text = String::from_utf8_lossy(&buffer);
         let content = annotate_line_numbers(text);
-        // TODO: binary detection
-        let tokens = {
-            let bpe = o200k_base_singleton();
-            let bpe = bpe.lock();
-            bpe.encode_with_special_tokens(&content)
-        };
+        let tokens = tokenize(&content);
         let meta = FileMeta {
             path,
             binary_detected: false,
