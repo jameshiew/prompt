@@ -13,7 +13,7 @@ pub fn count(files: Files, top: Option<u32>) -> Result<()> {
     } else {
         let total_tokens = files
             .iter()
-            .map(|r| r.value().meta().token_count())
+            .map(|r| r.value().meta.token_count)
             .sum::<usize>();
         let total_tokens = total_tokens.to_string();
         println!("Total tokens: {}", total_tokens);
@@ -25,7 +25,7 @@ pub fn output(files: Files, stdout: bool) -> Result<()> {
     let tree = FiletreeNode::try_from(&files)?;
 
     let mut prompt = vec![];
-    let excluded = files.excluded();
+    let excluded = files.get_excluded();
 
     write_filetree(&mut prompt, &tree)?;
     write_files_content(&mut prompt, files)?;
@@ -59,12 +59,12 @@ fn write_files_content(mut writer: impl Write, files: Files) -> Result<()> {
     paths.sort();
     for path in paths.iter() {
         let info = files.remove(path).expect("should be able to get file info");
-        if info.meta().excluded() {
+        if info.meta.excluded {
             continue;
         }
         writeln!(writer, "{}:", path.display())?;
         writeln!(writer)?;
-        writeln!(writer, "{}", info.utf8())?;
+        writeln!(writer, "{}", info.utf8)?;
         writeln!(writer, "---")?;
     }
 
@@ -73,12 +73,7 @@ fn write_files_content(mut writer: impl Write, files: Files) -> Result<()> {
 
 fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
     let mut sorted = files.iter().collect::<Vec<_>>();
-    sorted.sort_by(|a, b| {
-        b.value()
-            .meta()
-            .token_count()
-            .cmp(&a.value().meta().token_count())
-    });
+    sorted.sort_by(|a, b| b.value().meta.token_count.cmp(&a.value().meta.token_count));
     let mut top_total_tokens = 0;
     let mut top_file_count = 0; // track this in case there are less files in total than top
     let mut all_total_tokens = 0;
@@ -88,14 +83,14 @@ fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
 
     for entry in iter.by_ref().take(top as usize) {
         let path = entry.key();
-        let token_count = entry.value().meta().token_count();
+        let token_count = entry.value().meta.token_count;
         writeln!(writer, "{}: {} tokens", path.display(), token_count)?;
         top_total_tokens += token_count;
         all_total_tokens += token_count;
         top_file_count += 1;
     }
     for entry in iter {
-        let token_count = entry.value().meta().token_count();
+        let token_count = entry.value().meta.token_count;
         all_total_tokens += token_count;
     }
 

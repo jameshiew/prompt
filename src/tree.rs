@@ -72,13 +72,9 @@ impl TreeItem for FiletreeNode {
     ) -> std::io::Result<()> {
         match &self.meta {
             Some(meta) => {
-                let text = if !meta.excluded() {
-                    format!(
-                        "{} ({} tokens)",
-                        style.paint(&self.name),
-                        meta.token_count()
-                    )
-                } else if meta.binary_detected() {
+                let text = if !meta.excluded {
+                    format!("{} ({} tokens)", style.paint(&self.name), meta.token_count)
+                } else if meta.binary_detected {
                     let text = format!(
                         "{} (auto-excluded, binary detected)",
                         style.paint(&self.name)
@@ -121,7 +117,7 @@ impl TryFrom<&Files> for FiletreeNode {
                 .get(&path)
                 .expect("should be able to get file contents from map")
                 .value()
-                .meta()
+                .meta
                 .clone();
 
             // Remove leading "./" since the root node is the "."

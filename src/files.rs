@@ -15,8 +15,8 @@ use crate::tokenizer::tokenize;
 /// Information collected about a read file.
 #[derive(Debug)]
 pub(crate) struct FileInfo {
-    utf8: String,
-    meta: FileMeta,
+    pub(crate) utf8: String,
+    pub(crate) meta: FileMeta,
 }
 
 impl FileInfo {
@@ -63,40 +63,14 @@ impl FileInfo {
             utf8: content,
         })
     }
-
-    pub(crate) fn utf8(&self) -> &str {
-        &self.utf8
-    }
-
-    pub(crate) fn meta(&self) -> &FileMeta {
-        &self.meta
-    }
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct FileMeta {
-    path: PathBuf,
-    excluded: bool,
-    binary_detected: bool,
-    token_count: usize,
-}
-
-impl FileMeta {
-    pub(crate) fn path(&self) -> &Path {
-        &self.path
-    }
-
-    pub(crate) fn binary_detected(&self) -> bool {
-        self.binary_detected
-    }
-
-    pub(crate) fn token_count(&self) -> usize {
-        self.token_count
-    }
-
-    pub(crate) fn excluded(&self) -> bool {
-        self.excluded
-    }
+    pub(crate) path: PathBuf,
+    pub(crate) excluded: bool,
+    pub(crate) binary_detected: bool,
+    pub(crate) token_count: usize,
 }
 
 #[derive(Default)]
@@ -130,13 +104,13 @@ impl Files {
         self.inner.iter()
     }
 
-    pub(crate) fn excluded(&self) -> Vec<PathBuf> {
+    pub(crate) fn get_excluded(&self) -> Vec<PathBuf> {
         self.inner
             .iter()
             .filter_map(|entry| {
                 let (_, info) = entry.pair();
-                if info.meta().excluded() {
-                    Some(info.meta().path().to_owned())
+                if info.meta.excluded {
+                    Some(info.meta.path.to_owned())
                 } else {
                     None
                 }
