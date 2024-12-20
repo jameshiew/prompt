@@ -345,6 +345,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "config"
+version = "0.15.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d73c1a90f0e9b8aa27881dedf820679d851991c138a3371d6364a38ea0a59552"
+dependencies = [
+ "pathdiff",
+ "serde",
+ "toml",
+ "winnow",
+]
+
+[[package]]
 name = "const-random"
 version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1332,11 +1344,13 @@ dependencies = [
  "bindet",
  "clap",
  "clap_complete",
+ "config 0.15.3",
  "crossterm",
  "dashmap",
  "glob",
  "ignore",
  "ptree",
+ "serde",
  "text-splitter",
  "tiktoken-rs",
  "tokio",
@@ -1351,7 +1365,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "289cfd20ebec0e7ff2572e370dd7a1c9973ba666d3c38c5e747de0a4ada21f17"
 dependencies = [
  "anstyle",
- "config",
+ "config 0.14.1",
  "directories",
  "petgraph",
  "serde",

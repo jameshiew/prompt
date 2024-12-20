@@ -3,9 +3,12 @@ use std::path::PathBuf;
 use anyhow::{bail, Result};
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
+use config::Config;
+use prompt::config::{find_config_path, PromptConfig};
 use prompt::discovery::discover;
 use prompt::files::Files;
 use prompt::run::{self};
+use serde::Deserialize;
 use tracing_subscriber::EnvFilter;
 
 const BINARY_NAME: &str = "prompt";
@@ -73,6 +76,19 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .try_init()
         .expect("should be able to initialize the logger");
+
+    let cwd = std::env::current_dir()?;
+    let _cfg = match find_config_path(&cwd) {
+        Some(cfg_path) => {
+            let cfg = Config::builder()
+                .add_source(config::File::with_name(&cfg_path.to_string_lossy()))
+                .build()?;
+            let cfg = PromptConfig::deserialize(cfg)?;
+            tracing::debug!(?cfg, "Loaded config");
+            cfg
+        }
+        None => PromptConfig::default(),
+    };
 
     let cli = Cli::parse();
 
