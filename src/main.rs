@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
 use config::Config;
 use prompt::config::{find_config_path, PromptConfig};
@@ -35,28 +35,36 @@ struct Cli {
         help = "Glob patterns to exclude from the prompt, separated by commas"
     )]
     exclude: Vec<glob::Pattern>,
+
+    #[command(flatten)]
+    output: OutputOptions,
 }
 
-#[derive(Debug, Subcommand, Clone)]
+#[derive(Debug, Args)]
+struct OutputOptions {
+    #[arg(long, help = "Print prompt to stdout instead of copying to clipboard")]
+    stdout: bool,
+    #[arg(long, help = "Don't print summary to stdout")]
+    no_summary: bool,
+    #[arg(
+        long,
+        value_name = "OPTION",
+        value_enum,
+        default_value_t = CountTokenOptions::default(),
+        help = "Token count nothing, the final output or also all individual files"
+    )]
+    count_tokens: CountTokenOptions,
+}
+
+#[derive(Debug, Default, Subcommand, Clone)]
 enum Command {
+    /// (default) Output a prompt that includes matching files (copies to clipboard by default)
+    #[default]
+    Output,
     /// Generate shell completions
     ShellCompletions {
         #[arg()]
         shell: Shell,
-    },
-    /// Output a prompt that includes matching files (copies to clipboard by default)
-    Output {
-        #[arg(long, help = "Print prompt to stdout instead of copying to clipboard")]
-        stdout: bool,
-        #[arg(long, help = "Don't print summary to stdout")]
-        no_summary: bool,
-        #[arg(
-            long,
-            value_name = "OPTION",
-            value_enum,
-            help = "Whether to include token count for final output (+ all individual files)"
-        )]
-        count_tokens: CountTokenOptions,
     },
     /// Count tokens from matching files
     Count {
@@ -69,16 +77,6 @@ enum Command {
     )]
         top: Option<u32>,
     },
-}
-
-impl Default for Command {
-    fn default() -> Self {
-        Command::Output {
-            stdout: false,
-            no_summary: false,
-            count_tokens: CountTokenOptions::default(),
-        }
-    }
 }
 
 #[tokio::main]
@@ -111,25 +109,21 @@ async fn main() -> Result<()> {
 
     let command = cli.command.unwrap_or_default();
     match command {
-        Command::ShellCompletions { shell } => {
-            let mut cmd = Cli::command();
-            generate(shell, &mut cmd, BINARY_NAME, &mut std::io::stdout());
-            Ok(())
-        }
-        Command::Output {
-            stdout,
-            no_summary,
-            count_tokens,
-        } => {
+        Command::Output => {
             run::output(
                 first_path,
                 rest_paths,
                 cli.exclude,
-                stdout,
-                no_summary,
-                count_tokens,
+                cli.output.stdout,
+                cli.output.no_summary,
+                cli.output.count_tokens,
             )
             .await
+        }
+        Command::ShellCompletions { shell } => {
+            let mut cmd = Cli::command();
+            generate(shell, &mut cmd, BINARY_NAME, &mut std::io::stdout());
+            Ok(())
         }
         Command::Count { top } => run::count(first_path, rest_paths, cli.exclude, top).await,
     }

@@ -13,9 +13,9 @@ use crate::tree::FiletreeNode;
 
 #[derive(Default, Debug, Clone, Copy, EnumString, ValueEnum, Eq, Hash, PartialEq)]
 pub enum CountTokenOptions {
-    #[default]
     #[strum(serialize = "none")]
     None,
+    #[default]
     #[strum(serialize = "final")]
     Final,
     #[strum(serialize = "all")]
