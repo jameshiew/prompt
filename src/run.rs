@@ -94,7 +94,12 @@ fn write_files_content(mut writer: impl Write, files: Files) -> Result<()> {
         }
         writeln!(writer, "{}:", path.display())?;
         writeln!(writer)?;
-        writeln!(writer, "{}", info.utf8)?;
+        writeln!(
+            writer,
+            "{}",
+            info.utf8
+                .expect("should be able to get utf8 if this file wasn't excluded")
+        )?;
         writeln!(writer, "---")?;
     }
 

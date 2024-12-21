@@ -15,7 +15,7 @@ use crate::tokenizer::tokenize;
 /// Information collected about a read file.
 #[derive(Debug)]
 pub(crate) struct FileInfo {
-    pub(crate) utf8: String,
+    pub(crate) utf8: Option<String>,
     pub(crate) meta: FileMeta,
 }
 
@@ -33,7 +33,7 @@ impl FileInfo {
                     token_count: None,
                     excluded,
                 },
-                utf8: "".to_string(),
+                utf8: None,
             });
         }
 
@@ -47,7 +47,7 @@ impl FileInfo {
                     token_count: None,
                     excluded: true,
                 },
-                utf8: "".to_string(),
+                utf8: None,
             });
         };
 
@@ -69,7 +69,7 @@ impl FileInfo {
 
         Ok(Self {
             meta,
-            utf8: content,
+            utf8: Some(content),
         })
     }
 }
