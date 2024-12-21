@@ -17,7 +17,6 @@ bindet = { version = "0.3.2", features = ["mime", "mediatype"] }
 clap = { version = "4.5.23", features = ["derive"] }
 clap_complete = "4.5.38"
 config = { version = "0.15.3", default-features = false, features = ["toml"] }
-crossterm = "0.28.1"
 dashmap = "6.1.0"
 glob = "0.3.1"
 ignore = "0.4.23"

@@ -61,7 +61,7 @@ pub async fn output(
     let mut prompt = vec![];
     let excluded = files.get_excluded();
 
-    write_filetree(&mut prompt, &tree)?;
+    write_filetree(&mut prompt, tree.plain_output()?)?;
     write_files_content(&mut prompt, files)?;
 
     let output = String::from_utf8_lossy(&prompt);
@@ -80,16 +80,18 @@ pub async fn output(
         return Ok(());
     }
 
-    write_filetree(std::io::stdout(), &tree)?;
+    write_filetree(std::io::stdout(), tree.tty_output()?)?;
     if let Some(token_count) = final_token_count {
         println!("{} total tokens copied", token_count);
     }
-    println!("Excluded: {:?}", excluded);
+    if !excluded.is_empty() {
+        println!("Excluded {} files: {:?}", excluded.len(), excluded);
+    }
 
     Ok(())
 }
 
-fn write_filetree(mut writer: impl Write, tree: &FiletreeNode) -> Result<()> {
+fn write_filetree(mut writer: impl Write, tree: String) -> Result<()> {
     writeln!(writer, "Files:")?;
     writeln!(writer)?;
     writeln!(writer, "{}", tree)?;

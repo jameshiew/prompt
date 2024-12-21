@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
-use std::fmt;
 
 use anyhow::Result;
-use crossterm::style::Stylize;
+use ptree::print_config::StyleWhen;
 use ptree::TreeItem;
 
 use crate::files::{strip_dot_prefix, FileMeta, Files};
@@ -14,21 +13,6 @@ pub(crate) struct FiletreeNode {
     children: BTreeMap<String, FiletreeNode>,
 }
 
-impl fmt::Display for FiletreeNode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut tree_buf = vec![];
-        ptree::write_tree_with(self, &mut tree_buf, &ptree::PrintConfig::default()).map_err(
-            |err| {
-                tracing::error!(?err, "Couldn't write tree");
-                fmt::Error
-            },
-        )?;
-        let tree_str = String::from_utf8_lossy(&tree_buf);
-        write!(f, "{}", tree_str)?;
-        Ok(())
-    }
-}
-
 impl FiletreeNode {
     pub(crate) fn new(name: &str, meta: Option<FileMeta>) -> Self {
         Self {
@@ -36,6 +20,26 @@ impl FiletreeNode {
             children: BTreeMap::new(),
             meta,
         }
+    }
+
+    fn ptree(&self, cfg: &ptree::PrintConfig) -> Result<String> {
+        let mut buf = vec![];
+        ptree::write_tree_with(self, &mut buf, cfg)?;
+        Ok(String::from_utf8_lossy(&buf).to_string())
+    }
+
+    pub(crate) fn tty_output(&self) -> Result<String> {
+        self.ptree(&ptree::PrintConfig {
+            styled: StyleWhen::Tty,
+            ..ptree::PrintConfig::default()
+        })
+    }
+
+    pub(crate) fn plain_output(&self) -> Result<String> {
+        self.ptree(&ptree::PrintConfig {
+            styled: StyleWhen::Never,
+            ..ptree::PrintConfig::default()
+        })
     }
 
     pub(crate) fn insert_path(&mut self, components: &[&str], meta: Option<FileMeta>) {
@@ -75,23 +79,14 @@ impl TreeItem for FiletreeNode {
                 let text = if !meta.excluded {
                     match meta.token_count {
                         Some(token_count) => {
-                            format!("{} ({} tokens)", style.paint(&self.name), token_count)
+                            format!("{} ({} tokens)", &self.name, token_count)
                         }
-                        None => {
-                            format!("{}", style.paint(&self.name))
-                        }
+                        None => self.name.to_owned(),
                     }
                 } else if meta.binary_detected {
-                    let text = format!(
-                        "{} (auto-excluded, binary detected)",
-                        style.paint(&self.name)
-                    );
-                    let text = text.yellow();
-                    text.to_string()
+                    format!("{} (auto-excluded, binary detected)", &self.name)
                 } else {
-                    let text = format!("{} (excluded)", style.paint(&self.name));
-                    let text = text.red();
-                    text.to_string()
+                    format!("{} (excluded)", &self.name)
                 };
                 write!(f, "{}", style.paint(text))
             }
