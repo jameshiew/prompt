@@ -48,8 +48,10 @@ enum Command {
     },
     /// Output a prompt that includes matching files (copies to clipboard by default)
     Output {
-        #[arg(long, help = "Print prompt to stdout without any summary")]
+        #[arg(long, help = "Print prompt to stdout instead of copying to clipboard")]
         stdout: bool,
+        #[arg(long, help = "Don't print summary to stdout")]
+        no_summary: bool,
     },
     /// Count tokens from matching files
     Count {
@@ -66,7 +68,10 @@ enum Command {
 
 impl Default for Command {
     fn default() -> Self {
-        Command::Output { stdout: false }
+        Command::Output {
+            stdout: false,
+            no_summary: true,
+        }
     }
 }
 
@@ -105,7 +110,7 @@ async fn main() -> Result<()> {
             generate(shell, &mut cmd, BINARY_NAME, &mut std::io::stdout());
             Ok(())
         }
-        Command::Output { stdout } => run::output(files, stdout),
+        Command::Output { stdout, no_summary } => run::output(files, stdout, no_summary),
         Command::Count { top } => run::count(files, top),
     }
 }

@@ -21,7 +21,7 @@ pub fn count(files: Files, top: Option<u32>) -> Result<()> {
     Ok(())
 }
 
-pub fn output(files: Files, stdout: bool) -> Result<()> {
+pub fn output(files: Files, stdout: bool, no_summary: bool) -> Result<()> {
     let tree = FiletreeNode::try_from(&files)?;
 
     let mut prompt = vec![];
@@ -35,11 +35,14 @@ pub fn output(files: Files, stdout: bool) -> Result<()> {
 
     if stdout {
         print!("{}", output);
+    } else {
+        let mut clipboard = Clipboard::new()?;
+        clipboard.set_text(output)?;
+    }
+    if no_summary {
         return Ok(());
     }
 
-    let mut clipboard = Clipboard::new()?;
-    clipboard.set_text(output)?;
     write_filetree(std::io::stdout(), &tree)?;
     println!("{} total tokens copied", total_tokens.len());
     println!("Excluded: {:?}", excluded);
