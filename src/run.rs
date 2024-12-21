@@ -1,19 +1,29 @@
 use std::io::Write;
+use std::path::PathBuf;
 
 use anyhow::Result;
 use arboard::Clipboard;
 
+use crate::discovery::discover;
 use crate::files::Files;
 use crate::tokenizer::tokenize;
 use crate::tree::FiletreeNode;
 
-pub fn count(files: Files, top: Option<u32>) -> Result<()> {
+pub async fn count(
+    first_path: PathBuf,
+    rest_paths: Vec<PathBuf>,
+    exclude: Vec<glob::Pattern>,
+    top: Option<u32>,
+) -> Result<()> {
+    let discovered = discover(first_path.clone(), rest_paths.to_vec(), exclude)?;
+    let files = Files::read_from(discovered, true).await?;
+
     if let Some(count) = top {
         write_top(std::io::stdout(), &files, count)?;
     } else {
         let total_tokens = files
             .iter()
-            .map(|r| r.value().meta.token_count)
+            .map(|r| r.value().meta.token_count.unwrap_or_default())
             .sum::<usize>();
         let total_tokens = total_tokens.to_string();
         println!("Total tokens: {}", total_tokens);
@@ -21,7 +31,17 @@ pub fn count(files: Files, top: Option<u32>) -> Result<()> {
     Ok(())
 }
 
-pub fn output(files: Files, stdout: bool, no_summary: bool) -> Result<()> {
+pub async fn output(
+    first_path: PathBuf,
+    rest_paths: Vec<PathBuf>,
+    exclude: Vec<glob::Pattern>,
+    stdout: bool,
+    no_summary: bool,
+    count_tokens: bool,
+) -> Result<()> {
+    let discovered = discover(first_path.clone(), rest_paths.to_vec(), exclude)?;
+    let files = Files::read_from(discovered, count_tokens).await?;
+
     let tree = FiletreeNode::try_from(&files)?;
 
     let mut prompt = vec![];
@@ -31,7 +51,12 @@ pub fn output(files: Files, stdout: bool, no_summary: bool) -> Result<()> {
     write_files_content(&mut prompt, files)?;
 
     let output = String::from_utf8_lossy(&prompt);
-    let total_tokens = tokenize(&output);
+    let token_count = if count_tokens {
+        let total_tokens = tokenize(&output);
+        Some(total_tokens.len())
+    } else {
+        None
+    };
 
     if stdout {
         print!("{}", output);
@@ -44,7 +69,9 @@ pub fn output(files: Files, stdout: bool, no_summary: bool) -> Result<()> {
     }
 
     write_filetree(std::io::stdout(), &tree)?;
-    println!("{} total tokens copied", total_tokens.len());
+    if let Some(token_count) = token_count {
+        println!("{} total tokens copied", token_count);
+    }
     println!("Excluded: {:?}", excluded);
 
     Ok(())
@@ -86,14 +113,22 @@ fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
 
     for entry in iter.by_ref().take(top as usize) {
         let path = entry.key();
-        let token_count = entry.value().meta.token_count;
+        let token_count = entry
+            .value()
+            .meta
+            .token_count
+            .expect("should always be counting tokens when counting top");
         writeln!(writer, "{}: {} tokens", path.display(), token_count)?;
         top_total_tokens += token_count;
         all_total_tokens += token_count;
         top_file_count += 1;
     }
     for entry in iter {
-        let token_count = entry.value().meta.token_count;
+        let token_count = entry
+            .value()
+            .meta
+            .token_count
+            .expect("should always be counting tokens when counting top");
         all_total_tokens += token_count;
     }
 

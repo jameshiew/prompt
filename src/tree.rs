@@ -73,7 +73,14 @@ impl TreeItem for FiletreeNode {
         match &self.meta {
             Some(meta) => {
                 let text = if !meta.excluded {
-                    format!("{} ({} tokens)", style.paint(&self.name), meta.token_count)
+                    match meta.token_count {
+                        Some(token_count) => {
+                            format!("{} ({} tokens)", style.paint(&self.name), token_count)
+                        }
+                        None => {
+                            format!("{}", style.paint(&self.name))
+                        }
+                    }
                 } else if meta.binary_detected {
                     let text = format!(
                         "{} (auto-excluded, binary detected)",

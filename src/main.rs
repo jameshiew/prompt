@@ -1,12 +1,10 @@
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
 use config::Config;
 use prompt::config::{find_config_path, PromptConfig};
-use prompt::discovery::discover;
-use prompt::files::Files;
 use prompt::run::{self};
 use serde::Deserialize;
 use tracing_subscriber::EnvFilter;
@@ -52,6 +50,8 @@ enum Command {
         stdout: bool,
         #[arg(long, help = "Don't print summary to stdout")]
         no_summary: bool,
+        #[arg(long, help = "Count tokens from matching files")]
+        count_tokens: bool,
     },
     /// Count tokens from matching files
     Count {
@@ -70,7 +70,8 @@ impl Default for Command {
     fn default() -> Self {
         Command::Output {
             stdout: false,
-            no_summary: true,
+            no_summary: false,
+            count_tokens: false,
         }
     }
 }
@@ -98,10 +99,10 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let Some((first_path, rest_paths)) = cli.paths.split_first() else {
-        bail!("No paths provided")
+        unreachable!("should have at least one path by default");
     };
-    let discovered = discover(first_path.clone(), rest_paths.to_vec(), cli.exclude)?;
-    let files = Files::read_from(discovered).await?;
+    let first_path = first_path.to_owned();
+    let rest_paths = rest_paths.to_vec();
 
     let command = cli.command.unwrap_or_default();
     match command {
@@ -110,7 +111,21 @@ async fn main() -> Result<()> {
             generate(shell, &mut cmd, BINARY_NAME, &mut std::io::stdout());
             Ok(())
         }
-        Command::Output { stdout, no_summary } => run::output(files, stdout, no_summary),
-        Command::Count { top } => run::count(files, top),
+        Command::Output {
+            stdout,
+            no_summary,
+            count_tokens,
+        } => {
+            run::output(
+                first_path,
+                rest_paths,
+                cli.exclude,
+                stdout,
+                no_summary,
+                count_tokens,
+            )
+            .await
+        }
+        Command::Count { top } => run::count(first_path, rest_paths, cli.exclude, top).await,
     }
 }

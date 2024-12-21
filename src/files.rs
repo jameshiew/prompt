@@ -20,13 +20,17 @@ pub(crate) struct FileInfo {
 }
 
 impl FileInfo {
-    pub(crate) async fn new(path: PathBuf, excluded: bool) -> anyhow::Result<Self> {
+    pub(crate) async fn new(
+        path: PathBuf,
+        excluded: bool,
+        count_tokens: bool,
+    ) -> anyhow::Result<Self> {
         if excluded {
             return Ok(Self {
                 meta: FileMeta {
                     path,
                     binary_detected: false,
-                    token_count: 0,
+                    token_count: None,
                     excluded,
                 },
                 utf8: "".to_string(),
@@ -40,7 +44,7 @@ impl FileInfo {
                 meta: FileMeta {
                     path,
                     binary_detected: true,
-                    token_count: 0,
+                    token_count: None,
                     excluded: true,
                 },
                 utf8: "".to_string(),
@@ -50,11 +54,16 @@ impl FileInfo {
         let buffer = fs::read(&path).await?;
         let text = String::from_utf8_lossy(&buffer);
         let content = annotate_line_numbers(text);
-        let tokens = tokenize(&content);
+        let token_count = if count_tokens {
+            let tokens = tokenize(&content);
+            Some(tokens.len())
+        } else {
+            None
+        };
         let meta = FileMeta {
             path,
             binary_detected: false,
-            token_count: tokens.len(),
+            token_count,
             excluded,
         };
 
@@ -70,7 +79,7 @@ pub(crate) struct FileMeta {
     pub(crate) path: PathBuf,
     pub(crate) excluded: bool,
     pub(crate) binary_detected: bool,
-    pub(crate) token_count: usize,
+    pub(crate) token_count: Option<usize>,
 }
 
 #[derive(Default)]
@@ -79,10 +88,10 @@ pub struct Files {
 }
 
 impl Files {
-    pub async fn read_from(discovered: Vec<DiscoveredFile>) -> Result<Self> {
+    pub async fn read_from(discovered: Vec<DiscoveredFile>, count_tokens: bool) -> Result<Self> {
         let files = Self::default();
         for disc in discovered {
-            let info = FileInfo::new(disc.path.clone(), disc.excluded).await?;
+            let info = FileInfo::new(disc.path.clone(), disc.excluded, count_tokens).await?;
             files.insert(disc.path, info);
         }
         Ok(files)
