@@ -3,11 +3,24 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use arboard::Clipboard;
+use clap::ValueEnum;
+use strum::EnumString;
 
 use crate::discovery::discover;
 use crate::files::Files;
 use crate::tokenizer::tokenize;
 use crate::tree::FiletreeNode;
+
+#[derive(Default, Debug, Clone, Copy, EnumString, ValueEnum, Eq, Hash, PartialEq)]
+pub enum CountTokenOptions {
+    #[default]
+    #[strum(serialize = "none")]
+    None,
+    #[strum(serialize = "final")]
+    Final,
+    #[strum(serialize = "all")]
+    All,
+}
 
 pub async fn count(
     first_path: PathBuf,
@@ -37,10 +50,11 @@ pub async fn output(
     exclude: Vec<glob::Pattern>,
     stdout: bool,
     no_summary: bool,
-    count_tokens: bool,
+    count_tokens: CountTokenOptions,
 ) -> Result<()> {
     let discovered = discover(first_path.clone(), rest_paths.to_vec(), exclude)?;
-    let files = Files::read_from(discovered, count_tokens).await?;
+    let files =
+        Files::read_from(discovered, matches!(count_tokens, CountTokenOptions::All)).await?;
 
     let tree = FiletreeNode::try_from(&files)?;
 
@@ -51,11 +65,9 @@ pub async fn output(
     write_files_content(&mut prompt, files)?;
 
     let output = String::from_utf8_lossy(&prompt);
-    let token_count = if count_tokens {
-        let total_tokens = tokenize(&output);
-        Some(total_tokens.len())
-    } else {
-        None
+    let final_token_count = match count_tokens {
+        CountTokenOptions::Final | CountTokenOptions::All => Some(tokenize(&output).len()),
+        CountTokenOptions::None => None,
     };
 
     if stdout {
@@ -69,7 +81,7 @@ pub async fn output(
     }
 
     write_filetree(std::io::stdout(), &tree)?;
-    if let Some(token_count) = token_count {
+    if let Some(token_count) = final_token_count {
         println!("{} total tokens copied", token_count);
     }
     println!("Excluded: {:?}", excluded);

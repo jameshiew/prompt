@@ -1513,6 +1513,7 @@ dependencies = [
  "ignore",
  "ptree",
  "serde",
+ "strum",
  "text-splitter",
  "tiktoken-rs",
  "tokio",

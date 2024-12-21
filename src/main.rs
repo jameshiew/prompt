@@ -5,7 +5,7 @@ use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
 use config::Config;
 use prompt::config::{find_config_path, PromptConfig};
-use prompt::run::{self};
+use prompt::run::{self, CountTokenOptions};
 use serde::Deserialize;
 use tracing_subscriber::EnvFilter;
 
@@ -50,8 +50,13 @@ enum Command {
         stdout: bool,
         #[arg(long, help = "Don't print summary to stdout")]
         no_summary: bool,
-        #[arg(long, help = "Count tokens from matching files")]
-        count_tokens: bool,
+        #[arg(
+            long,
+            value_name = "OPTION",
+            value_enum,
+            help = "Whether to include token count for final output (+ all individual files)"
+        )]
+        count_tokens: CountTokenOptions,
     },
     /// Count tokens from matching files
     Count {
@@ -71,7 +76,7 @@ impl Default for Command {
         Command::Output {
             stdout: false,
             no_summary: false,
-            count_tokens: false,
+            count_tokens: CountTokenOptions::default(),
         }
     }
 }
