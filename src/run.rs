@@ -72,7 +72,6 @@ pub async fn output(
     rest_paths: Vec<PathBuf>,
     exclude: Vec<glob::Pattern>,
     stdout: bool,
-    no_summary: bool,
     token_count: TokenCountOptions,
     format: Format,
 ) -> Result<()> {
@@ -110,13 +109,11 @@ pub async fn output(
         let mut handle = stdout.lock();
         handle.write_all(output.as_bytes())?;
         handle.flush()?;
-    } else {
-        let mut clipboard = Clipboard::new()?;
-        clipboard.set_text(output)?;
+        return Ok(()); // no summary if printing prompt to stdout
     }
-    if no_summary {
-        return Ok(());
-    }
+
+    let mut clipboard = Clipboard::new()?;
+    clipboard.set_text(output)?;
 
     write_filetree(std::io::stdout(), tree.tty_output()?)?;
     if let Some(token_count) = final_token_count {

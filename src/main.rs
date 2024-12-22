@@ -41,12 +41,17 @@ struct Cli {
     output: OutputOptions,
 }
 
+// default - prompt clip, summary stdout
+// prompt stdout, summary NO
+// prompt stdout, summary stdout
+//
 #[derive(Debug, Args)]
 struct OutputOptions {
-    #[arg(long, help = "Print prompt to stdout instead of copying to clipboard")]
+    #[arg(
+        long,
+        help = "Print prompt to stdout with no summary instead of copying to clipboard"
+    )]
     stdout: bool,
-    #[arg(long, help = "Don't print summary to stdout")]
-    no_summary: bool,
     #[arg(
         long,
         value_name = "OPTION",
@@ -116,7 +121,6 @@ async fn main() -> Result<()> {
                 rest_paths,
                 cli.exclude,
                 cli.output.stdout,
-                cli.output.no_summary,
                 cli.output.token_count,
                 cli.format,
             )
