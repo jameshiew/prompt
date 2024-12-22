@@ -31,9 +31,7 @@ impl FileInfo {
             return Ok(Self {
                 meta: FileMeta {
                     path,
-                    binary_detected: false,
-                    token_count: None,
-                    excluded,
+                    read_status: ReadStatus::ExcludedExplicitly,
                 },
                 utf8: None,
             });
@@ -45,9 +43,7 @@ impl FileInfo {
             return Ok(Self {
                 meta: FileMeta {
                     path,
-                    binary_detected: true,
-                    token_count: None,
-                    excluded: true,
+                    read_status: ReadStatus::ExcludedBinaryDetected,
                 },
                 utf8: None,
             });
@@ -56,17 +52,17 @@ impl FileInfo {
         let buffer = fs::read(&path).await?;
         let text = String::from_utf8_lossy(&buffer);
         let content = annotate_line_numbers(text);
-        let token_count = if count_tokens {
+        let meta = if count_tokens {
             let tokens = tokenize(&content);
-            Some(tokens.len())
+            FileMeta {
+                path,
+                read_status: ReadStatus::TokenCounted(tokens.len()),
+            }
         } else {
-            None
-        };
-        let meta = FileMeta {
-            path,
-            binary_detected: false,
-            token_count,
-            excluded,
+            FileMeta {
+                path,
+                read_status: ReadStatus::Read,
+            }
         };
 
         Ok(Self {
@@ -79,9 +75,31 @@ impl FileInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct FileMeta {
     pub(crate) path: PathBuf,
-    pub(crate) excluded: bool,
-    pub(crate) binary_detected: bool,
-    pub(crate) token_count: Option<usize>,
+    pub(crate) read_status: ReadStatus,
+}
+
+impl FileMeta {
+    pub(crate) fn is_excluded(&self) -> bool {
+        matches!(
+            self.read_status,
+            ReadStatus::ExcludedExplicitly | ReadStatus::ExcludedBinaryDetected
+        )
+    }
+
+    pub(crate) fn token_count_or_zero(&self) -> usize {
+        let ReadStatus::TokenCounted(token_count) = &self.read_status else {
+            return 0;
+        };
+        *token_count
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) enum ReadStatus {
+    ExcludedExplicitly,
+    ExcludedBinaryDetected,
+    Read,
+    TokenCounted(usize),
 }
 
 #[derive(Default)]
@@ -139,7 +157,7 @@ impl Files {
             .iter()
             .filter_map(|entry| {
                 let (_, info) = entry.pair();
-                if info.meta.excluded {
+                if info.meta.is_excluded() {
                     Some(info.meta.path.to_owned())
                 } else {
                     None

@@ -69,17 +69,17 @@ impl TreeItem for FiletreeNode {
     ) -> std::io::Result<()> {
         match &self.meta {
             Some(meta) => {
-                let text = if !meta.excluded {
-                    match meta.token_count {
-                        Some(token_count) => {
-                            format!("{} ({} tokens)", &self.name, token_count)
-                        }
-                        None => self.name.to_owned(),
+                let text = match meta.read_status {
+                    crate::files::ReadStatus::ExcludedExplicitly => {
+                        format!("{} (excluded)", &self.name)
                     }
-                } else if meta.binary_detected {
-                    format!("{} (auto-excluded, binary detected)", &self.name)
-                } else {
-                    format!("{} (excluded)", &self.name)
+                    crate::files::ReadStatus::ExcludedBinaryDetected => {
+                        format!("{} (auto-excluded, binary detected)", &self.name)
+                    }
+                    crate::files::ReadStatus::Read => self.name.to_owned(),
+                    crate::files::ReadStatus::TokenCounted(token_count) => {
+                        format!("{} ({} tokens)", &self.name, token_count)
+                    }
                 };
                 write!(f, "{}", style.paint(text))
             }

@@ -8,7 +8,7 @@ use serde::Serialize;
 use strum::EnumString;
 
 use crate::discovery::discover;
-use crate::files::Files;
+use crate::files::{Files, ReadStatus};
 use crate::tokenizer::tokenize;
 use crate::tree::FiletreeNode;
 
@@ -50,16 +50,14 @@ pub async fn count(
             .iter()
             .map(|r| {
                 let info = r.value();
-                if info.meta.excluded {
-                    return 0;
-                }
-                let Some(token_count) = info.meta.token_count else {
-                    unreachable!(
+                match info.meta.read_status {
+                    ReadStatus::ExcludedExplicitly | ReadStatus::ExcludedBinaryDetected => 0,
+                    ReadStatus::Read => unreachable!(
                         "non-excluded files should have token count: {}",
                         info.meta.path.display()
-                    );
-                };
-                token_count
+                    ),
+                    ReadStatus::TokenCounted(token_count) => token_count,
+                }
             })
             .sum::<usize>();
         let total_tokens = total_tokens.to_string();
@@ -145,7 +143,7 @@ fn write_files_content(mut writer: impl Write, files: Files) -> Result<()> {
     paths.sort();
     for path in paths.iter() {
         let info = files.remove(path).expect("should be able to get file info");
-        if info.meta.excluded {
+        if info.meta.is_excluded() {
             continue;
         }
         writeln!(writer, "{}:", path.display())?;
@@ -164,7 +162,12 @@ fn write_files_content(mut writer: impl Write, files: Files) -> Result<()> {
 
 fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
     let mut sorted = files.iter().collect::<Vec<_>>();
-    sorted.sort_by(|a, b| b.value().meta.token_count.cmp(&a.value().meta.token_count));
+    sorted.sort_by(|a, b| {
+        b.value()
+            .meta
+            .token_count_or_zero()
+            .cmp(&a.value().meta.token_count_or_zero())
+    });
     let mut top_total_tokens = 0;
     let mut top_file_count = 0; // track this in case there are less files in total than top
     let mut all_total_tokens = 0;
@@ -174,22 +177,14 @@ fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
 
     for entry in iter.by_ref().take(top as usize) {
         let path = entry.key();
-        let token_count = entry
-            .value()
-            .meta
-            .token_count
-            .expect("should always be counting tokens when counting top");
+        let token_count = entry.value().meta.token_count_or_zero();
         writeln!(writer, "{}: {} tokens", path.display(), token_count)?;
         top_total_tokens += token_count;
         all_total_tokens += token_count;
         top_file_count += 1;
     }
     for entry in iter {
-        let token_count = entry
-            .value()
-            .meta
-            .token_count
-            .expect("should always be counting tokens when counting top");
+        let token_count = entry.value().meta.token_count_or_zero();
         all_total_tokens += token_count;
     }
 
