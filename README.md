@@ -5,9 +5,9 @@ Reads files from the current directory into a prompt, respecting .gitignore and 
 ## Basic usage
 
 ```shell
-prompt output # copies straight to clipboard
-prompt output --stdout  # prints to stdout without summary
-prompt output -p src/ app/ -e out/  # include/exclude certain paths
+prompt # copies straight to clipboard
+prompt --stdout --no-summary # prints prompt to stdout without summary
+prompt -p src/ app/ -e out/  # include/exclude certain paths
 ```
 
 ## Suggested .promptignore in home directory
