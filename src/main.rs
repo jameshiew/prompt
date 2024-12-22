@@ -5,7 +5,7 @@ use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
 use config::Config;
 use prompt::config::{find_config_path, PromptConfig};
-use prompt::run::{self, TokenCountOptions};
+use prompt::run::{self, Format, TokenCountOptions};
 use serde::Deserialize;
 use tracing_subscriber::EnvFilter;
 
@@ -22,8 +22,8 @@ struct Cli {
         global = true,
         num_args = 1..,
         value_name = "PATH",
+        default_value = ".",
         help = "Paths to the files/directories for reading into a prompt",
-        default_value = "."
     )]
     paths: Vec<PathBuf>,
     #[arg(
@@ -32,10 +32,11 @@ struct Cli {
         global = true,
         num_args = 1..,
         value_name = "PATTERN",
-        help = "Glob patterns to exclude from the prompt, separated by commas"
+        help = "Glob patterns to exclude from the prompt, separated by commas",
     )]
     exclude: Vec<glob::Pattern>,
-
+    #[arg(short, long, global = true, value_enum, default_value_t = Format::default(), help = "Output format")]
+    format: Format,
     #[command(flatten)]
     output: OutputOptions,
 }
@@ -117,6 +118,7 @@ async fn main() -> Result<()> {
                 cli.output.stdout,
                 cli.output.no_summary,
                 cli.output.token_count,
+                cli.format,
             )
             .await
         }

@@ -7,13 +7,15 @@ use anyhow::Result;
 use dashmap::mapref::multiple::RefMulti;
 use dashmap::mapref::one::Ref;
 use dashmap::DashMap;
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Serialize};
 use tokio::fs;
 
 use crate::discovery::DiscoveredFile;
 use crate::tokenizer::tokenize;
 
 /// Information collected about a read file.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct FileInfo {
     pub(crate) utf8: Option<String>,
     pub(crate) meta: FileMeta,
@@ -74,7 +76,7 @@ impl FileInfo {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct FileMeta {
     pub(crate) path: PathBuf,
     pub(crate) excluded: bool,
@@ -85,6 +87,21 @@ pub(crate) struct FileMeta {
 #[derive(Default)]
 pub struct Files {
     inner: DashMap<PathBuf, FileInfo>,
+}
+
+impl Serialize for Files {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.len()))?;
+        for entry in self.inner.iter() {
+            let file = entry.value();
+            let path = entry.key();
+            map.serialize_entry(path, file)?;
+        }
+        map.end()
+    }
 }
 
 impl Files {
@@ -111,6 +128,10 @@ impl Files {
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = RefMulti<PathBuf, FileInfo>> {
         self.inner.iter()
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.inner.len()
     }
 
     pub(crate) fn get_excluded(&self) -> Vec<PathBuf> {

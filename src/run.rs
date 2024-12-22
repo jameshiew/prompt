@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use arboard::Clipboard;
 use clap::ValueEnum;
+use serde::Serialize;
 use strum::EnumString;
 
 use crate::discovery::discover;
@@ -20,6 +21,15 @@ pub enum TokenCountOptions {
     Final,
     #[strum(serialize = "all")]
     All,
+}
+
+#[derive(Default, Debug, Clone, Copy, EnumString, ValueEnum, Eq, Hash, PartialEq)]
+pub enum Format {
+    #[default]
+    #[strum(serialize = "plaintext")]
+    Plaintext,
+    #[strum(serialize = "json")]
+    Json,
 }
 
 pub async fn count(
@@ -49,6 +59,11 @@ pub async fn count(
     Ok(())
 }
 
+#[derive(Serialize)]
+struct Output {
+    files: Files,
+}
+
 pub async fn output(
     first_path: PathBuf,
     rest_paths: Vec<PathBuf>,
@@ -56,6 +71,7 @@ pub async fn output(
     stdout: bool,
     no_summary: bool,
     token_count: TokenCountOptions,
+    format: Format,
 ) -> Result<()> {
     let discovered = discover(first_path.clone(), rest_paths.to_vec(), exclude)?;
     let files = Files::read_from(discovered, matches!(token_count, TokenCountOptions::All)).await?;
@@ -65,8 +81,15 @@ pub async fn output(
     let mut prompt = vec![];
     let excluded = files.get_excluded();
 
-    write_filetree(&mut prompt, tree.plain_output()?)?;
-    write_files_content(&mut prompt, files)?;
+    match format {
+        Format::Plaintext => {
+            write_filetree(&mut prompt, tree.tty_output()?)?;
+            write_files_content(&mut prompt, files)?;
+        }
+        Format::Json => {
+            write!(&mut prompt, "{}", serde_json::to_string(&Output { files })?)?;
+        }
+    }
 
     let output = String::from_utf8_lossy(&prompt);
     let final_token_count = match token_count {

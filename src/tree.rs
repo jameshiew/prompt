@@ -35,13 +35,6 @@ impl FiletreeNode {
         })
     }
 
-    pub(crate) fn plain_output(&self) -> Result<String> {
-        self.ptree(&ptree::PrintConfig {
-            styled: StyleWhen::Never,
-            ..ptree::PrintConfig::default()
-        })
-    }
-
     pub(crate) fn insert_path(&mut self, components: &[&str], meta: Option<FileMeta>) {
         if components.is_empty() {
             return;
