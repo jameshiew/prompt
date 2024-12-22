@@ -49,10 +49,17 @@ pub async fn count(
         let total_tokens = files
             .iter()
             .map(|r| {
-                r.value()
-                    .meta
-                    .token_count
-                    .expect("should always be able to get token count when counting")
+                let info = r.value();
+                if info.meta.excluded {
+                    return 0;
+                }
+                let Some(token_count) = info.meta.token_count else {
+                    unreachable!(
+                        "non-excluded files should have token count: {}",
+                        info.meta.path.display()
+                    );
+                };
+                token_count
             })
             .sum::<usize>();
         let total_tokens = total_tokens.to_string();
