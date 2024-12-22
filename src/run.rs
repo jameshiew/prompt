@@ -79,34 +79,31 @@ pub async fn output(
 
     let tree = FiletreeNode::try_from(&files)?;
 
-    let mut prompt = vec![];
     let excluded = files.get_excluded();
 
-    match format {
+    let output = match format {
         Format::Plaintext => {
+            let mut prompt = vec![];
             write_filetree(&mut prompt, tree.tty_output()?)?;
             write_files_content(&mut prompt, files)?;
+            String::from_utf8_lossy(&prompt).into_owned()
         }
-        Format::Json => {
-            write!(
-                &mut prompt,
-                "{}",
-                serde_json::to_string(&Output {
-                    tree: tree.tty_output()?,
-                    files
-                })?
-            )?;
-        }
-    }
+        Format::Json => serde_json::to_string(&Output {
+            tree: tree.tty_output()?,
+            files,
+        })?,
+    };
 
-    let output = String::from_utf8_lossy(&prompt);
     let final_token_count = match token_count {
         TokenCountOptions::Final | TokenCountOptions::All => Some(tokenize(&output).len()),
         TokenCountOptions::None => None,
     };
 
     if stdout {
-        print!("{}", output);
+        let stdout = std::io::stdout();
+        let mut handle = stdout.lock();
+        handle.write_all(output.as_bytes())?;
+        handle.flush()?;
     } else {
         let mut clipboard = Clipboard::new()?;
         clipboard.set_text(output)?;
