@@ -61,6 +61,7 @@ pub async fn count(
 
 #[derive(Serialize)]
 struct Output {
+    tree: String,
     files: Files,
 }
 
@@ -87,7 +88,14 @@ pub async fn output(
             write_files_content(&mut prompt, files)?;
         }
         Format::Json => {
-            write!(&mut prompt, "{}", serde_json::to_string(&Output { files })?)?;
+            write!(
+                &mut prompt,
+                "{}",
+                serde_json::to_string(&Output {
+                    tree: tree.tty_output()?,
+                    files
+                })?
+            )?;
         }
     }
 
