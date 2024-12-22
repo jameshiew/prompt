@@ -30,6 +30,8 @@ pub enum Format {
     Plaintext,
     #[strum(serialize = "json")]
     Json,
+    #[strum(serialize = "yaml")]
+    Yaml,
 }
 
 pub async fn count(
@@ -89,6 +91,10 @@ pub async fn output(
             String::from_utf8_lossy(&prompt).into_owned()
         }
         Format::Json => serde_json::to_string(&Output {
+            tree: tree.tty_output()?,
+            files,
+        })?,
+        Format::Yaml => serde_yml::to_string(&Output {
             tree: tree.tty_output()?,
             files,
         })?,

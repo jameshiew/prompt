@@ -23,6 +23,7 @@ ignore = "0.4.23"
 ptree = "0.5.2"
 serde = { version = "1.0.216", features = ["derive"] }
 serde_json = "1.0.134"
+serde_yml = "0.0.12"
 strum = { version = "0.26.3", features = ["derive"] }
 text-splitter = { version = "0.20.0", features = ["tiktoken-rs"] }
 tiktoken-rs = "0.6.0"
