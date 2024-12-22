@@ -12,7 +12,7 @@ use crate::tokenizer::tokenize;
 use crate::tree::FiletreeNode;
 
 #[derive(Default, Debug, Clone, Copy, EnumString, ValueEnum, Eq, Hash, PartialEq)]
-pub enum CountTokenOptions {
+pub enum TokenCountOptions {
     #[strum(serialize = "none")]
     None,
     #[default]
@@ -36,7 +36,12 @@ pub async fn count(
     } else {
         let total_tokens = files
             .iter()
-            .map(|r| r.value().meta.token_count.unwrap_or_default())
+            .map(|r| {
+                r.value()
+                    .meta
+                    .token_count
+                    .expect("should always be able to get token count when counting")
+            })
             .sum::<usize>();
         let total_tokens = total_tokens.to_string();
         println!("Total tokens: {}", total_tokens);
@@ -50,11 +55,10 @@ pub async fn output(
     exclude: Vec<glob::Pattern>,
     stdout: bool,
     no_summary: bool,
-    count_tokens: CountTokenOptions,
+    token_count: TokenCountOptions,
 ) -> Result<()> {
     let discovered = discover(first_path.clone(), rest_paths.to_vec(), exclude)?;
-    let files =
-        Files::read_from(discovered, matches!(count_tokens, CountTokenOptions::All)).await?;
+    let files = Files::read_from(discovered, matches!(token_count, TokenCountOptions::All)).await?;
 
     let tree = FiletreeNode::try_from(&files)?;
 
@@ -65,9 +69,9 @@ pub async fn output(
     write_files_content(&mut prompt, files)?;
 
     let output = String::from_utf8_lossy(&prompt);
-    let final_token_count = match count_tokens {
-        CountTokenOptions::Final | CountTokenOptions::All => Some(tokenize(&output).len()),
-        CountTokenOptions::None => None,
+    let final_token_count = match token_count {
+        TokenCountOptions::Final | TokenCountOptions::All => Some(tokenize(&output).len()),
+        TokenCountOptions::None => None,
     };
 
     if stdout {

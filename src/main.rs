@@ -5,7 +5,7 @@ use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
 use config::Config;
 use prompt::config::{find_config_path, PromptConfig};
-use prompt::run::{self, CountTokenOptions};
+use prompt::run::{self, TokenCountOptions};
 use serde::Deserialize;
 use tracing_subscriber::EnvFilter;
 
@@ -50,10 +50,10 @@ struct OutputOptions {
         long,
         value_name = "OPTION",
         value_enum,
-        default_value_t = CountTokenOptions::default(),
+        default_value_t = TokenCountOptions::default(),
         help = "Token count nothing, the final output or also all individual files"
     )]
-    count_tokens: CountTokenOptions,
+    token_count: TokenCountOptions,
 }
 
 #[derive(Debug, Default, Subcommand, Clone)]
@@ -116,7 +116,7 @@ async fn main() -> Result<()> {
                 cli.exclude,
                 cli.output.stdout,
                 cli.output.no_summary,
-                cli.output.count_tokens,
+                cli.output.token_count,
             )
             .await
         }
