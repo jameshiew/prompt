@@ -1,13 +1,13 @@
 # prompt
 
-Reads files from the current directory into a prompt, respecting .gitignore and .promptignore files.
+WIP tool for reading files from the current directory into a prompt, respecting .gitignore and .promptignore files. Still experimenting with functionality as needed.
 
 ## Basic usage
 
 ```shell
-prompt # copies straight to clipboard
-prompt --stdout --no-summary # prints prompt to stdout without summary
-prompt -p src/ app/ -e out/  # include/exclude certain paths
+prompt # copies straight to clipboard and prints summary
+prompt --format json --stdout # prints prompt content as json to stdout
+prompt -p src/ app/ -e out/  # include/exclude certain paths/globs
 ```
 
 ## Suggested .promptignore in home directory
