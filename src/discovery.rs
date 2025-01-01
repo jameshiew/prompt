@@ -24,6 +24,7 @@ pub fn discover(
     for path in extra_paths {
         walker.add(path);
     }
+    walker.hidden(false);
     walker.add_custom_ignore_filename(".promptignore");
     let walker = walker.build_parallel();
 
@@ -34,6 +35,10 @@ pub fn discover(
             Ok(dir_entry) => {
                 let path = dir_entry.path().to_owned();
                 if path.is_dir() {
+                    // including '.git' in .promptignore doesn't always reliably work e.g. if only included in the global .promptignore
+                    if path.components().any(|c| c.as_os_str() == ".git") {
+                        return WalkState::Skip;
+                    }
                     return WalkState::Continue;
                 }
                 if path.is_symlink() {
