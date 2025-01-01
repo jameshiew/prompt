@@ -33,8 +33,11 @@ pub fn discover(
         Box::new(|result| match result {
             Ok(dir_entry) => {
                 let path = dir_entry.path().to_owned();
-                if path.is_dir() || path.is_symlink() {
+                if path.is_dir() {
                     return WalkState::Continue;
+                }
+                if path.is_symlink() {
+                    return WalkState::Skip;
                 }
                 let path = strip_dot_prefix(&path);
                 let excluded = exclude.iter().any(|pattern| pattern.matches_path(path));
