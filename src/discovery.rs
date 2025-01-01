@@ -25,6 +25,12 @@ pub fn discover(
         walker.add(path);
     }
     walker.hidden(false);
+    // use thread heuristic from  https://github.com/BurntSushi/ripgrep/issues/2854
+    walker.threads(
+        std::thread::available_parallelism()
+            .map_or(1, |n| n.get())
+            .min(12),
+    );
     walker.add_custom_ignore_filename(".promptignore");
     let walker = walker.build_parallel();
 
