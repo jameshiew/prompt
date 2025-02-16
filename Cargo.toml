@@ -11,23 +11,23 @@ readme = "README.md"
 
 
 [dependencies]
-anyhow = "1.0.94"
+anyhow = "1.0.95"
 arboard = "3.4.1"
 bindet = { version = "0.3.2", features = ["mime", "mediatype"] }
-clap = { version = "4.5.23", features = ["derive"] }
-clap_complete = "4.5.38"
-config = { version = "0.15.3", default-features = false, features = ["toml"] }
+clap = { version = "4.5.29", features = ["derive"] }
+clap_complete = "4.5.44"
+config = { version = "0.15.8", default-features = false, features = ["toml"] }
 dashmap = "6.1.0"
-glob = "0.3.1"
+glob = "0.3.2"
 ignore = "0.4.23"
 ptree = "0.5.2"
-serde = { version = "1.0.216", features = ["derive"] }
-serde_json = "1.0.134"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.138"
 serde_yml = "0.0.12"
-strum = { version = "0.26.3", features = ["derive"] }
-text-splitter = { version = "0.20.0", features = ["tiktoken-rs"] }
+strum = { version = "0.27.0", features = ["derive"] }
+text-splitter = { version = "0.24.0", features = ["tiktoken-rs"] }
 tiktoken-rs = "0.6.0"
-tokio = { version = "1.42.0", features = ["macros", "rt-multi-thread", "fs"] }
+tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread", "fs"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 
