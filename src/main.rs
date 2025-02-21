@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
-use clap_complete::{generate, Shell};
+use clap_complete::{Shell, generate};
 use config::Config;
-use prompt::config::{find_config_path, PromptConfig};
+use prompt::config::{PromptConfig, find_config_path};
 use prompt::run::{self, Format, TokenCountOptions};
 use serde::Deserialize;
 use tracing_subscriber::EnvFilter;

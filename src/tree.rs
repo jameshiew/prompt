@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-use ptree::print_config::StyleWhen;
 use ptree::TreeItem;
+use ptree::print_config::StyleWhen;
 
-use crate::files::{strip_dot_prefix, FileMeta, Files};
+use crate::files::{FileMeta, Files, strip_dot_prefix};
 
 #[derive(Debug, Clone)]
 pub(crate) struct FiletreeNode {
