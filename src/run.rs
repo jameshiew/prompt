@@ -23,7 +23,9 @@ pub enum TokenCountOptions {
     All,
 }
 
-#[derive(Default, Debug, Clone, Copy, EnumString, ValueEnum, Eq, Hash, PartialEq)]
+#[derive(
+    Default, Debug, strum::Display, Clone, Copy, EnumString, ValueEnum, Eq, Hash, PartialEq,
+)]
 pub enum Format {
     #[default]
     #[strum(serialize = "plaintext")]
@@ -122,7 +124,7 @@ pub async fn output(
 
     write_filetree(std::io::stdout(), tree.tty_output()?)?;
     if let Some(token_count) = final_token_count {
-        println!("{} total tokens copied", token_count);
+        println!("{} total tokens copied ({})", token_count, format);
     }
     if !excluded.is_empty() {
         println!("Excluded {} files: {:?}", excluded.len(), excluded);
