@@ -11,11 +11,11 @@ readme = "README.md"
 
 
 [dependencies]
-anyhow = "1.0.97"
-arboard = "3.4.1"
+anyhow = "1.0.98"
+arboard = "3.5.0"
 bindet = { version = "0.3.2", features = ["mime", "mediatype"] }
-clap = { version = "4.5.34", features = ["derive"] }
-clap_complete = "4.5.47"
+clap = { version = "4.5.37", features = ["derive"] }
+clap_complete = "4.5.48"
 config = { version = "0.15.11", default-features = false, features = ["toml"] }
 dashmap = "6.1.0"
 glob = "0.3.2"
