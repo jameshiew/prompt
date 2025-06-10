@@ -79,14 +79,14 @@ pub(crate) struct FileMeta {
 }
 
 impl FileMeta {
-    pub(crate) fn is_excluded(&self) -> bool {
+    pub(crate) const fn is_excluded(&self) -> bool {
         matches!(
             self.read_status,
             ReadStatus::ExcludedExplicitly | ReadStatus::ExcludedBinaryDetected
         )
     }
 
-    pub(crate) fn token_count_or_zero(&self) -> usize {
+    pub(crate) const fn token_count_or_zero(&self) -> usize {
         let ReadStatus::TokenCounted(token_count) = &self.read_status else {
             return 0;
         };

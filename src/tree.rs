@@ -7,7 +7,7 @@ use ptree::print_config::StyleWhen;
 use crate::files::{FileMeta, Files, strip_dot_prefix};
 
 #[derive(Debug, Clone)]
-pub(crate) struct FiletreeNode {
+pub struct FiletreeNode {
     name: String,
     meta: Option<FileMeta>,
     children: BTreeMap<String, FiletreeNode>,
@@ -47,10 +47,10 @@ impl FiletreeNode {
         let entry = if is_last {
             // file node
             let meta = meta.clone();
-            entry.or_insert_with(|| FiletreeNode::new(name, meta))
+            entry.or_insert_with(|| Self::new(name, meta))
         } else {
             // directory node
-            entry.or_insert_with(|| FiletreeNode::new(name, None))
+            entry.or_insert_with(|| Self::new(name, None))
         };
 
         if !is_last {
@@ -60,7 +60,7 @@ impl FiletreeNode {
 }
 
 impl TreeItem for FiletreeNode {
-    type Child = FiletreeNode;
+    type Child = Self;
 
     fn write_self<W: std::io::Write>(
         &self,
@@ -90,11 +90,7 @@ impl TreeItem for FiletreeNode {
     }
 
     fn children(&self) -> std::borrow::Cow<[Self::Child]> {
-        let children = self
-            .children
-            .values()
-            .cloned()
-            .collect::<Vec<FiletreeNode>>();
+        let children = self.children.values().cloned().collect::<Vec<Self>>();
         std::borrow::Cow::Owned(children)
     }
 }
@@ -106,7 +102,7 @@ impl TryFrom<&Files> for FiletreeNode {
         let paths = files.iter().map(|r| r.key().clone());
 
         // Build a tree of files collected
-        let mut root = FiletreeNode::new(".", None);
+        let mut root = Self::new(".", None);
         for path in paths {
             let meta = files
                 .get(&path)

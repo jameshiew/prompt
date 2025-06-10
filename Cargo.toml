@@ -40,3 +40,6 @@ criterion = { version = "0.6", features = ["html_reports"] }
 [[bench]]
 name = "split_tokenizing"
 harness = false
+
+[lints.clippy]
+nursery = "warn"
