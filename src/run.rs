@@ -162,20 +162,23 @@ fn write_files_content(mut writer: impl Write, files: Files) -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::significant_drop_tightening)]
 fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
-    let mut sorted = files.iter().collect::<Vec<_>>();
-    sorted.sort_by(|a, b| {
-        b.value()
-            .meta
-            .token_count_or_zero()
-            .cmp(&a.value().meta.token_count_or_zero())
-    });
     let mut top_total_tokens = 0;
     let mut top_file_count = 0; // track this in case there are less files in total than top
     let mut all_total_tokens = 0;
-    let all_file_count = sorted.len();
+    let all_file_count = files.len();
 
-    let mut iter = sorted.into_iter();
+    let mut iter = {
+        let mut sorted = files.iter().collect::<Vec<_>>();
+        sorted.sort_by(|a, b| {
+            b.value()
+                .meta
+                .token_count_or_zero()
+                .cmp(&a.value().meta.token_count_or_zero())
+        });
+        sorted.into_iter()
+    };
 
     for entry in iter.by_ref().take(top as usize) {
         let path = entry.key();

@@ -20,7 +20,7 @@ pub fn discover(
     exclude: Vec<glob::Pattern>,
 ) -> Result<Vec<DiscoveredFile>> {
     let exclude = Arc::new(exclude);
-    let mut walker = WalkBuilder::new(path.clone());
+    let mut walker = WalkBuilder::new(path);
     for path in extra_paths {
         walker.add(path);
     }
