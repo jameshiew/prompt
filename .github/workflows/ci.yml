@@ -1,4 +1,6 @@
 name: CI
+permissions:
+  contents: read
 
 on:
   workflow_dispatch:
@@ -7,6 +9,7 @@ on:
       - Cargo.toml
       - Cargo.lock
       - "**.rs"
+      - .github/workflows/ci.yml
   push:
     branches:
       - main
@@ -14,6 +17,7 @@ on:
       - Cargo.toml
       - Cargo.lock
       - "**.rs"
+      - .github/workflows/ci.yml
 
 env:
   CARGO_TERM_COLOR: always

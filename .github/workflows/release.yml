@@ -8,10 +8,13 @@ on:
       - "**.rs"
       - Cargo.toml
       - Cargo.lock
+      - .github/workflows/release.yml
 
 jobs:
   release:
     name: Release - ${{ matrix.platform.target }}
+    permissions:
+      contents: write
     strategy:
       matrix:
         platform:
