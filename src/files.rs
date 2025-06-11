@@ -16,17 +16,13 @@ use crate::tokenizer::tokenize;
 
 /// Information collected about a read file.
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct FileInfo {
-    pub(crate) utf8: Option<String>,
-    pub(crate) meta: FileMeta,
+pub struct FileInfo {
+    pub utf8: Option<String>,
+    pub meta: FileMeta,
 }
 
 impl FileInfo {
-    pub(crate) async fn new(
-        path: PathBuf,
-        excluded: bool,
-        count_tokens: bool,
-    ) -> anyhow::Result<Self> {
+    pub async fn new(path: PathBuf, excluded: bool, count_tokens: bool) -> anyhow::Result<Self> {
         if excluded {
             return Ok(Self {
                 meta: FileMeta {
@@ -73,20 +69,20 @@ impl FileInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct FileMeta {
-    pub(crate) path: PathBuf,
-    pub(crate) read_status: ReadStatus,
+pub struct FileMeta {
+    pub path: PathBuf,
+    pub read_status: ReadStatus,
 }
 
 impl FileMeta {
-    pub(crate) const fn is_excluded(&self) -> bool {
+    pub const fn is_excluded(&self) -> bool {
         matches!(
             self.read_status,
             ReadStatus::ExcludedExplicitly | ReadStatus::ExcludedBinaryDetected
         )
     }
 
-    pub(crate) const fn token_count_or_zero(&self) -> usize {
+    pub const fn token_count_or_zero(&self) -> usize {
         let ReadStatus::TokenCounted(token_count) = &self.read_status else {
             return 0;
         };
@@ -95,7 +91,7 @@ impl FileMeta {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) enum ReadStatus {
+pub enum ReadStatus {
     ExcludedExplicitly,
     ExcludedBinaryDetected,
     Read,
@@ -136,23 +132,23 @@ impl Files {
         self.inner.insert(path, info);
     }
 
-    pub(crate) fn remove(&self, path: &Path) -> Option<FileInfo> {
+    pub fn remove(&self, path: &Path) -> Option<FileInfo> {
         self.inner.remove(path).map(|(_, info)| info)
     }
 
-    pub(crate) fn get(&self, path: &Path) -> Option<Ref<PathBuf, FileInfo>> {
+    pub fn get(&self, path: &Path) -> Option<Ref<PathBuf, FileInfo>> {
         self.inner.get(path)
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = RefMulti<PathBuf, FileInfo>> {
+    pub fn iter(&self) -> impl Iterator<Item = RefMulti<PathBuf, FileInfo>> {
         self.inner.iter()
     }
 
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.inner.len()
     }
 
-    pub(crate) fn get_excluded(&self) -> Vec<PathBuf> {
+    pub fn get_excluded(&self) -> Vec<PathBuf> {
         self.inner
             .iter()
             .filter_map(|entry| {

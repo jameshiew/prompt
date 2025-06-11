@@ -14,7 +14,7 @@ pub struct FiletreeNode {
 }
 
 impl FiletreeNode {
-    pub(crate) fn new(name: &str, meta: Option<FileMeta>) -> Self {
+    pub fn new(name: &str, meta: Option<FileMeta>) -> Self {
         Self {
             name: name.to_string(),
             children: BTreeMap::new(),
@@ -28,14 +28,14 @@ impl FiletreeNode {
         Ok(String::from_utf8_lossy(&buf).to_string())
     }
 
-    pub(crate) fn tty_output(&self) -> Result<String> {
+    pub fn tty_output(&self) -> Result<String> {
         self.ptree(&ptree::PrintConfig {
             styled: StyleWhen::Tty,
             ..ptree::PrintConfig::default()
         })
     }
 
-    pub(crate) fn insert_path(&mut self, components: &[&str], meta: Option<FileMeta>) {
+    pub fn insert_path(&mut self, components: &[&str], meta: Option<FileMeta>) {
         if components.is_empty() {
             return;
         }
