@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   machete:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
     steps:
@@ -38,7 +38,7 @@ jobs:
           tool: cargo-machete
       - run: just machete
   audit:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
     steps:

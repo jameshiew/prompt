@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   fmt:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,7 +39,7 @@ jobs:
       - run: just fmt-check
 
   test:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     needs:
       - fmt
     steps:
@@ -51,7 +51,7 @@ jobs:
       - uses: taiki-e/install-action@cargo-nextest
       - run: just test
   doc:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     needs:
       - fmt
     steps:
@@ -66,9 +66,9 @@ jobs:
     strategy:
       matrix:
         os:
-          - windows-2022
-          - macos-15
-          - ubuntu-24.04
+          - windows-11-arm
+          - macos-latest
+          - ubuntu-24.04-arm
     needs:
       - fmt
     steps:
@@ -82,7 +82,7 @@ jobs:
       - run: just clippy
 
   bench:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     needs:
       - test
       - doc
