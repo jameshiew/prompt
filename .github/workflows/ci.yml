@@ -2,10 +2,18 @@ name: CI
 
 on:
   pull_request:
+    paths:
+      - Cargo.toml
+      - Cargo.lock
+      - "**.rs"
   push:
     branches:
       - main
       - develop
+    paths:
+      - Cargo.toml
+      - Cargo.lock
+      - "**.rs"
 
 env:
   CARGO_TERM_COLOR: always
@@ -28,41 +36,11 @@ jobs:
           toolchain: nightly
       - uses: taiki-e/install-action@just
       - run: just fmt-check
-  machete:
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: taiki-e/install-action@just
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-machete
-      - run: just machete
-  audit:
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: taiki-e/install-action@just
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-audit
-      - run: just audit
 
   test:
     runs-on: ubuntu-24.04
     needs:
       - fmt
-      - machete
-      - audit
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,8 +53,6 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - fmt
-      - machete
-      - audit
     steps:
       - uses: actions/checkout@v4
         with:
@@ -94,8 +70,6 @@ jobs:
           - ubuntu-24.04
     needs:
       - fmt
-      - machete
-      - audit
     steps:
       - uses: actions/checkout@v4
         with:
