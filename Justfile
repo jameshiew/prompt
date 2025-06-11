@@ -35,6 +35,14 @@ doc:
 
 lint: fmt-check clippy
 
+install-cargo-tools:
+    cargo install cargo-binstall
+    cargo binstall --no-confirm just
+    cargo binstall --no-confirm cargo-hack
+    cargo binstall --no-confirm cargo-nextest
+    cargo binstall --no-confirm cargo-machete
+    cargo binstall --no-confirm cargo-audit
+
 test:
     cargo nextest run
 
