@@ -4,6 +4,10 @@ use tiktoken_rs::o200k_base_singleton;
 const CHUNK_CAPACITY: usize = 2_000_000;
 
 pub fn tokenize(text: &str) -> Vec<u32> {
+    if text.is_empty() {
+        return vec![];
+    }
+
     let bpe = o200k_base_singleton();
 
     let splitter = TextSplitter::new(ChunkConfig::new(CHUNK_CAPACITY));
@@ -15,4 +19,18 @@ pub fn tokenize(text: &str) -> Vec<u32> {
         .collect();
 
     tokens
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tokenize_empty() {
+        let text = "";
+
+        let result = tokenize(text);
+
+        assert!(result.is_empty());
+    }
 }
