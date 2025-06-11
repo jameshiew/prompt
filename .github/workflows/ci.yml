@@ -80,13 +80,10 @@ jobs:
           components: clippy
       - uses: taiki-e/install-action@just
       - run: just clippy
-
   bench:
     runs-on: ubuntu-24.04-arm
     needs:
-      - test
-      - doc
-      - clippy
+      - fmt
     steps:
       - uses: actions/checkout@v4
         with:
