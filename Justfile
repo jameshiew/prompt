@@ -44,7 +44,7 @@ install-cargo-tools:
     cargo binstall --no-confirm cargo-audit
 
 test:
-    cargo nextest run
+    cargo nextest run --future-incompat-report
 
 ## 3p
 
