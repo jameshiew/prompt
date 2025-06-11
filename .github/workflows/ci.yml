@@ -12,6 +12,10 @@ env:
   CARGO_TERM_VERBOSE: true
   RUSTC_WRAPPER: sccache
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   fmt:
     runs-on: ubuntu-24.04
