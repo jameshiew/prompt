@@ -20,23 +20,60 @@ jobs:
         with:
           components: rustfmt
           toolchain: nightly
-      - run: cargo +nightly fmt --all -- --check
+      - uses: taiki-e/install-action@just
+      - run: just fmt-check
+  machete:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@just
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-machete
+      - run: just machete
+  audit:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@just
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - run: just audit
+
   test:
     runs-on: ubuntu-24.04
-    needs: fmt
+    needs:
+      - fmt
+      - machete
+      - audit
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - uses: taiki-e/install-action@cargo-hack
-      - run: cargo hack test --all-targets --feature-powerset
-  docs:
+      - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@cargo-nextest
+      - run: just test
+  doc:
     runs-on: ubuntu-24.04
-    needs: fmt
+    needs:
+      - fmt
+      - machete
+      - audit
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - uses: taiki-e/install-action@cargo-hack
-      - run: RUSTDOCFLAGS="-Dwarnings" cargo hack doc --document-private-items --no-deps --feature-powerset
+      - uses: taiki-e/install-action@just
+      - run: just doc
   clippy:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -45,11 +82,27 @@ jobs:
           - windows-2022
           - macos-15
           - ubuntu-24.04
-    needs: fmt
+    needs:
+      - fmt
+      - machete
+      - audit
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: clippy
-      - uses: taiki-e/install-action@cargo-hack
-      - run: cargo hack clippy --all-targets --feature-powerset
+      - uses: taiki-e/install-action@just
+      - run: just clippy
+
+  bench:
+    runs-on: ubuntu-24.04
+    needs:
+      - test
+      - doc
+      - clippy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@cargo-nextest
+      - run: just bench
