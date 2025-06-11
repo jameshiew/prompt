@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 
 use anyhow::Result;
 use dashmap::DashSet;
@@ -34,10 +34,15 @@ pub fn discover(
     walker.add_custom_ignore_filename(".promptignore");
     let walker = walker.build_parallel();
 
-    // TODO: use channel to collect results and return early error
-    let discovered = DashSet::new();
+    // Create a channel to communicate errors from worker threads
+    let discovered = Arc::new(DashSet::new());
+    let (error_sender, error_receiver) = mpsc::channel::<ignore::Error>();
+
     walker.run(|| {
-        Box::new(|result| match result {
+        let error_sender = error_sender.clone();
+        let exclude = exclude.clone();
+        let discovered = Arc::clone(&discovered);
+        Box::new(move |result| match result {
             Ok(dir_entry) => {
                 let path = dir_entry.path().to_owned();
                 if path.is_dir() {
@@ -59,11 +64,60 @@ pub fn discover(
                 WalkState::Continue
             }
             Err(err) => {
-                panic!("Error reading file: {}", err);
+                // Send error through channel instead of panicking
+                let _ = error_sender.send(err);
+                WalkState::Quit
             }
         })
     });
+
+    // Drop the original sender so the receiver knows when all senders are done
+    drop(error_sender);
+
+    // Check for any errors that occurred during walking
+    if let Ok(error) = error_receiver.try_recv() {
+        return Err(anyhow::Error::new(error));
+    }
+
+    // Convert Arc<DashSet> back to Vec and proceed normally
+    let discovered = Arc::try_unwrap(discovered)
+        .map_err(|_| anyhow::anyhow!("Failed to unwrap discovered files"))?;
     let mut discovered: Vec<_> = discovered.into_iter().collect();
     discovered.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(discovered)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_discover_basic() {
+        // Test basic functionality with current directory
+        let result = discover(PathBuf::from("."), vec![], vec![]);
+        assert!(result.is_ok());
+        let discovered = result.unwrap();
+        assert!(!discovered.is_empty());
+    }
+
+    #[test]
+    fn test_discover_nonexistent_path() {
+        // Test with a path that doesn't exist - this should return an error gracefully
+        let result = discover(
+            PathBuf::from("/nonexistent/path/that/should/not/exist"),
+            vec![],
+            vec![],
+        );
+        // This should either succeed with an empty result or fail gracefully (not panic)
+        // The exact behavior depends on how ignore handles nonexistent paths
+        match result {
+            Ok(_) => {
+                // If it succeeds, that's fine too - some paths might just be skipped
+            }
+            Err(_) => {
+                // If it returns an error, that's the expected behavior we want to test
+                // This validates that our error handling is working correctly
+            }
+        }
+    }
 }
