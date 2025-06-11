@@ -10,6 +10,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CARGO_TERM_VERBOSE: true
+  RUSTC_WRAPPER: sccache
 
 jobs:
   fmt:
