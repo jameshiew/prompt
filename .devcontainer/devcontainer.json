@@ -1,0 +1,23 @@
+{
+  "name": "prompt",
+  "image": "mcr.microsoft.com/devcontainers/rust:latest",
+  "customizations": {
+    "vscode": {
+      "extensions": ["rust-lang.rust-analyzer", "tamasfe.even-better-toml"]
+    },
+    "settings": {
+      "rust-analyzer.cargo.extraArgs": ["--target-dir", "/home/vscode/target"]
+    }
+  },
+  "remoteUser": "vscode",
+  "containerUser": "vscode",
+  "containerEnv": {
+    "CARGO_TARGET_DIR": "/home/vscode/target"
+  },
+  "mounts": [
+    "source=${localWorkspaceFolderBasename}-target,target=/home/vscode/target,type=volume",
+    "source=${localWorkspaceFolderBasename}-cargo,target=/usr/local/cargo,type=volume"
+  ],
+  "postCreateCommand": "chown vscode:vscode /home/vscode/target",
+  "postStartCommand": "git config --global --add safe.directory /workspaces/prompt"
+}
