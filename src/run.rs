@@ -119,12 +119,32 @@ pub async fn output(
         return Ok(()); // no summary if printing prompt to stdout
     }
 
-    let mut clipboard = Clipboard::new()?;
-    clipboard.set_text(output)?;
+    // Try to copy to clipboard, but gracefully handle failure in headless environments
+    let clipboard_success = match Clipboard::new() {
+        Ok(mut clipboard) => match clipboard.set_text(output) {
+            Ok(()) => true,
+            Err(e) => {
+                eprintln!("Warning: Failed to copy to clipboard: {}", e);
+                eprintln!(
+                    "Hint: Use --stdout flag to output directly instead of copying to clipboard"
+                );
+                false
+            }
+        },
+        Err(e) => {
+            eprintln!("Warning: Failed to access clipboard: {}", e);
+            eprintln!("Hint: Use --stdout flag to output directly instead of copying to clipboard");
+            false
+        }
+    };
 
     write_filetree(std::io::stdout(), tree.tty_output()?)?;
     if let Some(token_count) = final_token_count {
-        println!("{} total tokens copied ({})", token_count, format);
+        if clipboard_success {
+            println!("{} total tokens copied ({})", token_count, format);
+        } else {
+            println!("{} total tokens prepared ({})", token_count, format);
+        }
     }
     if !excluded.is_empty() {
         println!("Excluded {} files: {:?}", excluded.len(), excluded);
@@ -206,4 +226,32 @@ fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
     )?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_output_with_stdout_flag() {
+        // Create a temporary directory with a test file
+        let temp_dir = tempdir().expect("Failed to create temp directory");
+        let file_path = temp_dir.path().join("test.txt");
+        std::fs::write(&file_path, "Hello, world!").expect("Failed to write test file");
+
+        // Test with stdout flag - should not attempt clipboard access
+        let result = output(
+            temp_dir.path().to_path_buf(),
+            vec![],
+            vec![],
+            true, // stdout = true
+            TokenCountOptions::None,
+            Format::Plaintext,
+        )
+        .await;
+
+        assert!(result.is_ok(), "output() should succeed with stdout flag");
+    }
 }
