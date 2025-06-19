@@ -63,7 +63,7 @@ pub async fn count(
             })
             .sum::<usize>();
         let total_tokens = total_tokens.to_string();
-        println!("Total tokens: {}", total_tokens);
+        println!("Total tokens: {total_tokens}");
     }
     Ok(())
 }
@@ -124,7 +124,7 @@ pub async fn output(
 
     write_filetree(std::io::stdout(), tree.tty_output()?)?;
     if let Some(token_count) = final_token_count {
-        println!("{} total tokens copied ({})", token_count, format);
+        println!("{token_count} total tokens copied ({format})");
     }
     if !excluded.is_empty() {
         println!("Excluded {} files: {:?}", excluded.len(), excluded);
@@ -136,7 +136,7 @@ pub async fn output(
 fn write_filetree(mut writer: impl Write, tree: String) -> Result<()> {
     writeln!(writer, "Files:")?;
     writeln!(writer)?;
-    writeln!(writer, "{}", tree)?;
+    writeln!(writer, "{tree}")?;
     Ok(())
 }
 
@@ -196,13 +196,11 @@ fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
     writeln!(writer)?;
     writeln!(
         writer,
-        "Top {} files = {} tokens",
-        top_file_count, top_total_tokens,
+        "Top {top_file_count} files = {top_total_tokens} tokens",
     )?;
     writeln!(
         writer,
-        "All {} files = {} tokens",
-        all_file_count, all_total_tokens
+        "All {all_file_count} files = {all_total_tokens} tokens"
     )?;
 
     Ok(())

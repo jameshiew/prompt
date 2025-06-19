@@ -136,11 +136,11 @@ impl Files {
         self.inner.remove(path).map(|(_, info)| info)
     }
 
-    pub fn get(&self, path: &Path) -> Option<Ref<PathBuf, FileInfo>> {
+    pub fn get(&self, path: &Path) -> Option<Ref<'_, PathBuf, FileInfo>> {
         self.inner.get(path)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = RefMulti<PathBuf, FileInfo>> {
+    pub fn iter(&self) -> impl Iterator<Item = RefMulti<'_, PathBuf, FileInfo>> {
         self.inner.iter()
     }
 
@@ -176,7 +176,7 @@ fn annotate_line_numbers(text: Cow<str>) -> String {
     for (i, line) in text.lines().enumerate() {
         let line_num = i + 1;
         // Right-align the line number within the given width
-        numbered.push_str(&format!("{:>width$} {}\n", line_num, line, width = width));
+        numbered.push_str(&format!("{line_num:>width$} {line}\n"));
     }
 
     numbered

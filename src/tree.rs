@@ -89,7 +89,7 @@ impl TreeItem for FiletreeNode {
         }
     }
 
-    fn children(&self) -> std::borrow::Cow<[Self::Child]> {
+    fn children(&self) -> std::borrow::Cow<'_, [Self::Child]> {
         let children = self.children.values().cloned().collect::<Vec<Self>>();
         std::borrow::Cow::Owned(children)
     }

@@ -59,7 +59,7 @@ pub fn discover(
                 WalkState::Continue
             }
             Err(err) => {
-                panic!("Error reading file: {}", err);
+                panic!("Error reading file: {err}");
             }
         })
     });
