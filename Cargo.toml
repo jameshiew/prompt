@@ -11,7 +11,7 @@ readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.98"
-arboard = "3.5.0"
+arboard = "3.6.0"
 bindet = { version = "0.3.2", features = ["mime", "mediatype"] }
 clap = { version = "4.5.39", features = ["derive"] }
 clap_complete = "4.5.52"
