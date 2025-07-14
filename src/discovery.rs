@@ -19,10 +19,26 @@ pub fn discover(
     extra_paths: Vec<PathBuf>,
     exclude: Vec<glob::Pattern>,
 ) -> Result<Vec<DiscoveredFile>> {
-    let exclude = Arc::new(exclude);
+    // Helper function to create error message for non-existent paths
+    let path_not_found_error = |path: &PathBuf| {
+        anyhow::anyhow!(
+            "Path '{}' does not exist. If you're using a glob pattern like '*.go', \
+            note that this tool expects actual file or directory paths. \
+            Use the --exclude flag with glob patterns to filter files instead.",
+            path.display()
+        )
+    };
+
+    if !path.exists() {
+        return Err(path_not_found_error(&path));
+    }
+
     let mut walker = WalkBuilder::new(path);
-    for path in extra_paths {
-        walker.add(path);
+    for extra_path in extra_paths {
+        if !extra_path.exists() {
+            return Err(path_not_found_error(&extra_path));
+        }
+        walker.add(extra_path);
     }
     walker.hidden(false);
     // use thread heuristic from  https://github.com/BurntSushi/ripgrep/issues/2854
@@ -36,6 +52,7 @@ pub fn discover(
 
     // TODO: use channel to collect results and return early error
     let discovered = DashSet::new();
+    let exclude = Arc::new(exclude);
     walker.run(|| {
         Box::new(|result| match result {
             Ok(dir_entry) => {
