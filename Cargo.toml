@@ -35,7 +35,7 @@ inherits = "release"
 debug = 1
 
 [dev-dependencies]
-criterion = { version = "0.6", features = ["html_reports"] }
+criterion = { version = "0.7", features = ["html_reports"] }
 
 [[bench]]
 name = "split_tokenizing"
