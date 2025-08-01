@@ -66,9 +66,9 @@ struct OutputOptions {
 
 #[derive(Debug, Default, Subcommand, Clone)]
 enum Command {
-    /// (default) Output a prompt that includes matching files (copies to clipboard by default)
+    /// (default) Generate a prompt that includes matching files (copies to clipboard by default)
     #[default]
-    Output,
+    Generate,
     /// Generate shell completions
     ShellCompletions {
         #[arg()]
@@ -117,8 +117,8 @@ async fn main() -> Result<()> {
 
     let command = cli.command.unwrap_or_default();
     match command {
-        Command::Output => {
-            run::output(
+        Command::Generate => {
+            run::generate(
                 first_path,
                 rest_paths,
                 cli.exclude,

@@ -74,7 +74,7 @@ struct Output {
     files: Files,
 }
 
-pub async fn output(
+pub async fn generate(
     first_path: PathBuf,
     rest_paths: Vec<PathBuf>,
     exclude: Vec<glob::Pattern>,
