@@ -164,23 +164,26 @@ fn write_files_content(mut writer: impl Write, files: Files) -> Result<()> {
 
 #[allow(clippy::significant_drop_tightening)]
 fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
+    let mut entries = files
+        .iter()
+        .filter(|entry| !entry.value().meta.is_excluded())
+        .collect::<Vec<_>>();
+
+    let skipped_files = files.len().saturating_sub(entries.len());
+    let all_file_count = entries.len();
+
+    entries.sort_by(|a, b| {
+        b.value()
+            .meta
+            .token_count_or_zero()
+            .cmp(&a.value().meta.token_count_or_zero())
+    });
+
     let mut top_total_tokens = 0;
-    let mut top_file_count = 0; // track this in case there are less files in total than top
+    let mut top_file_count = 0;
     let mut all_total_tokens = 0;
-    let all_file_count = files.len();
 
-    let mut iter = {
-        let mut sorted = files.iter().collect::<Vec<_>>();
-        sorted.sort_by(|a, b| {
-            b.value()
-                .meta
-                .token_count_or_zero()
-                .cmp(&a.value().meta.token_count_or_zero())
-        });
-        sorted.into_iter()
-    };
-
-    for entry in iter.by_ref().take(top as usize) {
+    for entry in entries.iter().take(top as usize) {
         let path = entry.key();
         let token_count = entry.value().meta.token_count_or_zero();
         writeln!(writer, "{}: {} tokens", path.display(), token_count)?;
@@ -188,7 +191,8 @@ fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
         all_total_tokens += token_count;
         top_file_count += 1;
     }
-    for entry in iter {
+
+    for entry in entries.iter().skip(top as usize) {
         let token_count = entry.value().meta.token_count_or_zero();
         all_total_tokens += token_count;
     }
@@ -202,6 +206,78 @@ fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
         writer,
         "All {all_file_count} files = {all_total_tokens} tokens"
     )?;
+    if skipped_files > 0 {
+        writeln!(
+            writer,
+            "{skipped_files} files skipped (excluded or binary detected)"
+        )?;
+    }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use anyhow::Result;
+
+    use super::*;
+    use crate::discovery::DiscoveredFile;
+
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new() -> Self {
+            let unique = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system time before unix epoch")
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!("prompt-run-test-{unique}"));
+            fs::create_dir_all(&path).expect("should create temp dir");
+            Self { path }
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[tokio::test]
+    async fn write_top_omits_excluded_files() -> Result<()> {
+        let temp = TempDir::new();
+        let included_path = temp.path.join("included.txt");
+        fs::write(&included_path, b"hello")?;
+
+        let discovered = vec![
+            DiscoveredFile {
+                path: included_path.clone(),
+                excluded: false,
+            },
+            DiscoveredFile {
+                path: temp.path.join("target/excluded.bin"),
+                excluded: true,
+            },
+        ];
+
+        let files = Files::read_from(discovered, true).await?;
+
+        let mut buffer = Vec::new();
+        write_top(&mut buffer, &files, 5)?;
+        let output = String::from_utf8(buffer).expect("valid utf8 output");
+
+        assert!(output.contains("included.txt"));
+        assert!(!output.contains("excluded.bin"));
+        assert!(output.contains("Top 1 files ="));
+        assert!(output.contains("All 1 files ="));
+        assert!(output.contains("1 files skipped"));
+
+        Ok(())
+    }
 }
