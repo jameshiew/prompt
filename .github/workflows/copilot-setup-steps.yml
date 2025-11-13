@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # needed for MCP
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
       - uses: astral-sh/setup-uv@v6
         with:
           ignore-nothing-to-cache: true
