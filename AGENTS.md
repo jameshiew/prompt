@@ -23,3 +23,5 @@
 - Propose next steps
 
 ## Learnings
+
+- Avoid `serde_yml`/`libyml` because they're flagged by RUSTSEC-2025-0067/0068; prefer maintained YAML serializers (e.g. `serde_norway`).

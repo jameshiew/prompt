@@ -100,7 +100,7 @@ pub async fn generate(
             tree: tree.tty_output()?,
             files,
         })?,
-        Format::Yaml => serde_yml::to_string(&Output {
+        Format::Yaml => serde_norway::to_string(&Output {
             tree: tree.tty_output()?,
             files,
         })?,
