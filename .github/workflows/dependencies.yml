@@ -6,14 +6,14 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - Cargo.toml
+      - "**/Cargo.toml"
       - Cargo.lock
       - .github/workflows/dependencies.yml
   push:
     branches:
       - main
     paths:
-      - Cargo.toml
+      - "**/Cargo.toml"
       - Cargo.lock
       - .github/workflows/dependencies.yml
 
@@ -26,12 +26,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  machete:
-    runs-on: ubuntu-24.04-arm
+  check-dependencies:
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
       - uses: taiki-e/install-action@just
@@ -39,18 +39,10 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-machete
-      - run: just machete
-  audit:
-    runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
         with:
-          persist-credentials: false
-      - uses: taiki-e/install-action@just
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+          tool: cargo-deny
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-audit
-      - run: just audit
+      - run: just dep-check
