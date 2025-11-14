@@ -105,6 +105,7 @@ pub async fn generate(
         Format::Plaintext => {
             let mut prompt = vec![];
             write_filetree(&mut prompt, tree.tty_output()?)?;
+            write_document_separator(&mut prompt)?;
             write_files_content(&mut prompt, files)?;
             String::from_utf8_lossy(&prompt).into_owned()
         }
@@ -134,7 +135,11 @@ pub async fn generate(
     let mut clipboard = Clipboard::new()?;
     clipboard.set_text(output)?;
 
-    write_filetree(std::io::stdout(), tree.tty_output()?)?;
+    {
+        let mut summary = std::io::stdout();
+        write_filetree(&mut summary, tree.tty_output()?)?;
+        write_document_separator(&mut summary)?;
+    }
     if let Some(token_count) = final_token_count {
         println!("{token_count} total tokens copied ({format})");
     }
@@ -149,6 +154,12 @@ fn write_filetree(mut writer: impl Write, tree: String) -> Result<()> {
     writeln!(writer, "Files:")?;
     writeln!(writer)?;
     writeln!(writer, "{tree}")?;
+    Ok(())
+}
+
+fn write_document_separator(mut writer: impl Write) -> Result<()> {
+    writeln!(writer, "---")?;
+    writeln!(writer)?;
     Ok(())
 }
 
@@ -238,6 +249,7 @@ mod tests {
 
     use super::*;
     use crate::discovery::DiscoveredFile;
+    use crate::tree::FiletreeNode;
 
     struct TempDir {
         path: PathBuf,
@@ -289,6 +301,36 @@ mod tests {
         assert!(output.contains("Top 1 files ="));
         assert!(output.contains("All 1 files ="));
         assert!(output.contains("1 files skipped"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn plaintext_output_includes_document_separator() -> Result<()> {
+        let temp = TempDir::new();
+        let included_path = temp.path.join("included.txt");
+        fs::write(&included_path, b"hello")?;
+
+        let discovered = vec![DiscoveredFile {
+            path: included_path.clone(),
+            excluded: false,
+        }];
+
+        let files = Files::read_from(discovered, false).await?;
+        let tree = FiletreeNode::try_from(&files)?;
+
+        let mut buffer = Vec::new();
+        write_filetree(&mut buffer, tree.tty_output()?)?;
+        write_document_separator(&mut buffer)?;
+        write_files_content(&mut buffer, files)?;
+
+        let output = String::from_utf8(buffer).expect("valid utf8 output");
+        let doc_sep_idx = output.find("---\n\n").expect("document separator present");
+        let first_file_idx = output
+            .find(&format!("{}:", included_path.display()))
+            .expect("file path present");
+
+        assert!(doc_sep_idx < first_file_idx);
 
         Ok(())
     }
