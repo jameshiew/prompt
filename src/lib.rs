@@ -1,4 +1,3 @@
-pub mod config;
 pub(crate) mod discovery;
 pub(crate) mod files;
 pub mod run;
