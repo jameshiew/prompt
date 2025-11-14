@@ -34,6 +34,12 @@ struct Cli {
     exclude: Vec<glob::Pattern>,
     #[arg(short, long, global = true, value_enum, default_value_t = Format::default(), help = "Output format")]
     format: Format,
+    #[arg(
+        long,
+        global = true,
+        help = "Include files even if they would normally be excluded by .gitignore"
+    )]
+    no_gitignore: bool,
     #[command(flatten)]
     output: OutputOptions,
 }
@@ -106,6 +112,7 @@ async fn main() -> Result<()> {
                 first_path,
                 rest_paths,
                 cli.exclude,
+                cli.no_gitignore,
                 cli.output.stdout,
                 cli.output.token_count,
                 cli.format,
@@ -117,6 +124,8 @@ async fn main() -> Result<()> {
             generate(shell, &mut cmd, BINARY_NAME, &mut std::io::stdout());
             Ok(())
         }
-        Command::Count { top } => run::count(first_path, rest_paths, cli.exclude, top).await,
+        Command::Count { top } => {
+            run::count(first_path, rest_paths, cli.exclude, cli.no_gitignore, top).await
+        }
     }
 }

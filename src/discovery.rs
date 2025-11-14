@@ -18,6 +18,7 @@ pub fn discover(
     path: PathBuf,
     extra_paths: Vec<PathBuf>,
     exclude: Vec<glob::Pattern>,
+    no_gitignore: bool,
 ) -> Result<Vec<DiscoveredFile>> {
     // Helper function to create error message for non-existent paths
     let path_not_found_error = |path: &PathBuf| {
@@ -63,6 +64,11 @@ pub fn discover(
             .min(12),
     );
     walker.add_custom_ignore_filename(".promptignore");
+    if no_gitignore {
+        walker.git_ignore(false);
+        walker.git_global(false);
+        walker.git_exclude(false);
+    }
     let walker = walker.build_parallel();
 
     // TODO: use channel to collect results and return early error
@@ -122,6 +128,8 @@ mod tests {
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use anyhow::Result;
+
     use super::*;
 
     struct TempDir {
@@ -153,13 +161,43 @@ mod tests {
         fs::write(temp.path.join("keep.txt"), b"keep me")?;
 
         let pattern = glob::Pattern::new("target/**").expect("valid glob pattern");
-        let discovered = discover(temp.path.clone(), vec![], vec![pattern])?;
+        let discovered = discover(temp.path.clone(), vec![], vec![pattern], false)?;
 
         let excluded_entry = discovered
             .iter()
             .find(|entry| entry.path.ends_with("target/excluded.txt"))
             .expect("expected excluded file in discovery results");
         assert!(excluded_entry.excluded, "absolute-path glob did not match");
+
+        Ok(())
+    }
+
+    #[test]
+    fn gitignored_files_are_skipped_by_default() -> Result<()> {
+        let temp = TempDir::new();
+        fs::create_dir_all(&temp.path)?;
+        fs::create_dir_all(temp.path.join(".git"))?;
+        fs::write(temp.path.join(".gitignore"), b"ignored.txt\n")?;
+        let ignored = temp.path.join("ignored.txt");
+        fs::write(&ignored, b"skip me")?;
+
+        let discovered = discover(temp.path.clone(), vec![], vec![], false)?;
+        assert!(discovered.iter().all(|entry| entry.path != ignored));
+
+        Ok(())
+    }
+
+    #[test]
+    fn gitignored_files_can_be_included() -> Result<()> {
+        let temp = TempDir::new();
+        fs::create_dir_all(&temp.path)?;
+        fs::create_dir_all(temp.path.join(".git"))?;
+        fs::write(temp.path.join(".gitignore"), b"ignored.txt\n")?;
+        let ignored = temp.path.join("ignored.txt");
+        fs::write(&ignored, b"include me")?;
+
+        let discovered = discover(temp.path.clone(), vec![], vec![], true)?;
+        assert!(discovered.iter().any(|entry| entry.path == ignored));
 
         Ok(())
     }

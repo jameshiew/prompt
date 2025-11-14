@@ -1,6 +1,6 @@
 # prompt
 
-Experimental tool for concatenating and formatting files under the current directory into an LLM prompt, respecting .gitignore and .promptignore files.
+Experimental tool for concatenating and formatting files under the current directory into an LLM prompt, respecting .gitignore and .promptignore files by default.
 
 ## Why?
 
@@ -11,7 +11,8 @@ When asking a chat-based LLM like ChatGPT o1 something about code, you want to p
 ```shell
 prompt # copies straight to clipboard and prints summary
 prompt --format json --stdout # prints prompt content as json to stdout
-prompt -p src/ app/ -e out/  # include/exclude certain paths/globs
+prompt -p src/ app/ -e out/  # include/exclude certain paths/globs
+prompt --no-gitignore        # include files that are normally skipped by gitignore
 ```
 
 ## Suggested .promptignore in home directory

@@ -40,9 +40,15 @@ pub async fn count(
     first_path: PathBuf,
     rest_paths: Vec<PathBuf>,
     exclude: Vec<glob::Pattern>,
+    include_gitignored: bool,
     top: Option<u32>,
 ) -> Result<()> {
-    let discovered = discover(first_path.clone(), rest_paths.to_vec(), exclude)?;
+    let discovered = discover(
+        first_path.clone(),
+        rest_paths.to_vec(),
+        exclude,
+        include_gitignored,
+    )?;
     let files = Files::read_from(discovered, true).await?;
 
     if let Some(count) = top {
@@ -78,11 +84,17 @@ pub async fn generate(
     first_path: PathBuf,
     rest_paths: Vec<PathBuf>,
     exclude: Vec<glob::Pattern>,
+    no_gitignore: bool,
     stdout: bool,
     token_count: TokenCountOptions,
     format: Format,
 ) -> Result<()> {
-    let discovered = discover(first_path.clone(), rest_paths.to_vec(), exclude)?;
+    let discovered = discover(
+        first_path.clone(),
+        rest_paths.to_vec(),
+        exclude,
+        no_gitignore,
+    )?;
     let files = Files::read_from(discovered, matches!(token_count, TokenCountOptions::All)).await?;
 
     let tree = FiletreeNode::try_from(&files)?;
