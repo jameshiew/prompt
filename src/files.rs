@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::fs::OpenOptions;
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -13,6 +13,34 @@ use tokio::fs;
 
 use crate::discovery::DiscoveredFile;
 use crate::tokenizer::tokenize;
+
+const BINARY_DETECTION_BYTES: usize = 8 * 1024;
+const TEXTUAL_MIME_PREFIX: &str = "text/";
+
+fn is_probably_binary(sample: &[u8]) -> bool {
+    if let Some(kind) = infer::get(sample) {
+        let mime = kind.mime_type();
+        if mime.starts_with(TEXTUAL_MIME_PREFIX) || is_textual_mime(mime) {
+            return false;
+        }
+
+        return kind.matcher_type() != infer::MatcherType::Text;
+    }
+
+    // Fallback heuristic: treat presence of null bytes as binary.
+    sample.contains(&0)
+}
+
+fn is_textual_mime(mime: &str) -> bool {
+    matches!(
+        mime,
+        "application/json"
+            | "application/xml"
+            | "application/javascript"
+            | "application/graphql"
+            | "application/sql"
+    )
+}
 
 /// Information collected about a read file.
 #[derive(Debug, Serialize, Deserialize)]
@@ -34,8 +62,10 @@ impl FileInfo {
         }
 
         let file = OpenOptions::new().read(true).open(&path)?;
-        let buf = BufReader::new(file);
-        if (bindet::detect(buf)?).is_some() {
+        let mut reader = BufReader::new(file);
+        let mut sample = [0u8; BINARY_DETECTION_BYTES];
+        let read = reader.read(&mut sample)?;
+        if is_probably_binary(&sample[..read]) {
             return Ok(Self {
                 meta: FileMeta {
                     path,
