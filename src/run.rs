@@ -19,8 +19,8 @@ pub enum TokenCountOptions {
     #[default]
     #[strum(serialize = "final")]
     Final,
-    #[strum(serialize = "all")]
-    All,
+    #[strum(serialize = "each")]
+    Each,
 }
 
 #[derive(
@@ -95,7 +95,8 @@ pub async fn generate(
         exclude,
         no_gitignore,
     )?;
-    let files = Files::read_from(discovered, matches!(token_count, TokenCountOptions::All)).await?;
+    let files =
+        Files::read_from(discovered, matches!(token_count, TokenCountOptions::Each)).await?;
 
     let tree = FiletreeNode::try_from(&files)?;
 
@@ -120,7 +121,7 @@ pub async fn generate(
     };
 
     let final_token_count = match token_count {
-        TokenCountOptions::Final | TokenCountOptions::All => Some(tokenize(&output).len()),
+        TokenCountOptions::Final | TokenCountOptions::Each => Some(tokenize(&output).len()),
         TokenCountOptions::None => None,
     };
 
