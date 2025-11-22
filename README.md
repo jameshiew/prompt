@@ -1,6 +1,6 @@
 # prompt
 
-Experimental tool for concatenating and formatting files under the current directory into an LLM prompt, respecting .gitignore and .promptignore files by default.
+Experimental tool for concatenating and formatting files under the current directory into an LLM prompt, respecting `.gitignore` and `.promptignore` files by default.
 
 ## Installation
 
@@ -19,84 +19,4 @@ prompt # copies straight to clipboard and prints summary
 prompt --format json --stdout # prints prompt content as json to stdout
 prompt -p src/ app/ -e out/  # include/exclude certain paths/globs
 prompt --no-gitignore        # include files that are normally skipped by gitignore
-```
-
-## Suggested .promptignore in home directory
-
-```
-# Images
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.bmp
-*.tiff
-*.ico
-*.webp
-*.svgz
-
-# Audio
-*.mp3
-*.wav
-*.ogg
-*.flac
-
-# Video
-*.mp4
-*.mkv
-*.mov
-*.avi
-*.wmv
-
-# Archives / Compressed files
-*.zip
-*.tar*
-*.gz
-*.bz2
-*.7z
-*.rar
-*.tgz
-
-# Documents (binary/non-text)
-*.pdf
-*.doc
-*.docx
-*.xls
-*.xlsx
-*.ppt
-*.pptx
-
-# Executables
-*.exe
-*.dll
-*.so
-*.dylib
-*.bin
-*.dat
-*.wasm
-
-# Fonts
-*.ttf
-*.otf
-*.woff
-*.woff2
-
-# Lockfiles
-yarn.lock
-package-lock.json
-pnpm-lock.yaml
-bun.lockb
-go.sum
-Cargo.lock
-
-# Secret/test files
-*.crt
-*.pem
-*.crl
-*.ski
-*.der
-
-# Minified
-*.min.js
-
 ```
