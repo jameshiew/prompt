@@ -11,6 +11,8 @@ on:
       - "**.rs"
       - .github/workflows/ci.yml
   push:
+    branches:
+      - main
     paths:
       - "**/Cargo.toml"
       - Cargo.lock
