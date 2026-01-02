@@ -10,7 +10,7 @@ use crate::files::{FileMeta, Files, strip_dot_prefix};
 pub struct FiletreeNode {
     name: String,
     meta: Option<FileMeta>,
-    children: BTreeMap<String, FiletreeNode>,
+    children: BTreeMap<String, Self>,
 }
 
 impl FiletreeNode {
