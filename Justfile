@@ -19,3 +19,6 @@ dep-check:
     cargo machete
     cargo deny check
     cargo audit
+
+install:
+    cargo install --locked --path .
