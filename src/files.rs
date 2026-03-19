@@ -139,10 +139,18 @@ impl Serialize for Files {
         S: serde::Serializer,
     {
         let mut map = serializer.serialize_map(Some(self.len()))?;
-        for entry in self.inner.iter() {
-            let file = entry.value();
-            let path = entry.key();
-            map.serialize_entry(path, file)?;
+        let mut paths = self
+            .inner
+            .iter()
+            .map(|entry| entry.key().clone())
+            .collect::<Vec<_>>();
+        paths.sort();
+
+        for path in paths {
+            let file = self
+                .get(&path)
+                .expect("path collected from map should still exist");
+            map.serialize_entry(&path, file.value())?;
         }
         map.end()
     }
@@ -214,4 +222,54 @@ fn annotate_line_numbers(text: Cow<str>) -> String {
 
 pub fn strip_dot_prefix(path: &Path) -> &Path {
     path.strip_prefix(".").unwrap_or(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn build_file(path: &str) -> (PathBuf, FileInfo) {
+        let path = PathBuf::from(path);
+        let info = FileInfo {
+            utf8: Some("1 test".to_string()),
+            meta: FileMeta {
+                path: path.clone(),
+                read_status: ReadStatus::Read,
+            },
+        };
+
+        (path, info)
+    }
+
+    #[test]
+    fn serialized_structured_output_is_stable_and_sorted() {
+        let files = Files::default();
+        for path in ["zeta.rs", "alpha.rs", "middle.rs"] {
+            let (path, info) = build_file(path);
+            files.insert(path, info);
+        }
+
+        let json_runs = (0..5)
+            .map(|_| serde_json::to_string(&files).expect("json serialization should work"))
+            .collect::<Vec<_>>();
+        let yaml_runs = (0..5)
+            .map(|_| serde_norway::to_string(&files).expect("yaml serialization should work"))
+            .collect::<Vec<_>>();
+
+        assert!(json_runs.windows(2).all(|pair| pair[0] == pair[1]));
+        assert!(yaml_runs.windows(2).all(|pair| pair[0] == pair[1]));
+
+        let json = &json_runs[0];
+        let alpha_pos = json
+            .find("\"alpha.rs\"")
+            .expect("alpha.rs should be in serialized output");
+        let middle_pos = json
+            .find("\"middle.rs\"")
+            .expect("middle.rs should be in serialized output");
+        let zeta_pos = json
+            .find("\"zeta.rs\"")
+            .expect("zeta.rs should be in serialized output");
+        assert!(alpha_pos < middle_pos);
+        assert!(middle_pos < zeta_pos);
+    }
 }
