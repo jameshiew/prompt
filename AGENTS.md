@@ -25,3 +25,4 @@
 ## Learnings
 
 - Avoid `serde_yml`/`libyml` because they're flagged by RUSTSEC-2025-0067/0068; prefer maintained YAML serializers (e.g. `serde_norway`).
+- When discovery visits the same file through overlapping include roots, merge by file path and let `excluded = true` win to keep exclusion behavior deterministic and safe.
