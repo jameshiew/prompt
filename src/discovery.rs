@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use dashmap::DashSet;
@@ -81,13 +81,14 @@ pub fn discover(
     }
     let walker = walker.build_parallel();
 
-    // TODO: use channel to collect results and return early error
     let discovered = Arc::new(DashSet::new());
+    let walk_error = Arc::new(Mutex::new(None));
     let exclude = Arc::new(exclude);
     walker.run(|| {
         let match_bases = Arc::clone(&match_bases);
         let exclude = Arc::clone(&exclude);
         let discovered = Arc::clone(&discovered);
+        let walk_error = Arc::clone(&walk_error);
         Box::new(move |result| match result {
             Ok(dir_entry) => {
                 let path = dir_entry.path().to_owned();
@@ -113,10 +114,23 @@ pub fn discover(
                 WalkState::Continue
             }
             Err(err) => {
-                panic!("Error reading file: {err}");
+                let mut guard = walk_error
+                    .lock()
+                    .expect("walk error mutex should not be poisoned");
+                if guard.is_none() {
+                    *guard = Some(anyhow::anyhow!("failed to read entry: {err}"));
+                }
+                WalkState::Quit
             }
         })
     });
+    let walk_error = walk_error
+        .lock()
+        .expect("walk error mutex should not be poisoned")
+        .take();
+    if let Some(err) = walk_error {
+        return Err(err);
+    }
     let discovered = Arc::try_unwrap(discovered).expect("walker should release all refs");
     let mut discovered: Vec<_> = discovered.into_iter().collect();
     apply_promptignore(&mut discovered, &promptignore_roots);
@@ -479,6 +493,40 @@ mod tests {
             .find(|entry| entry.path == text)
             .expect("notes.txt present");
         assert!(!text_entry.excluded);
+
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_directories_return_an_error() -> Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = TempDir::new();
+        let locked = temp.path.join("locked");
+        fs::create_dir_all(&locked)?;
+        fs::write(temp.path.join("ok.txt"), b"ok")?;
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000))?;
+
+        let result = discover(temp.path.clone(), vec![], vec![], false);
+
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o700))?;
+
+        match result {
+            Ok(_) => {
+                if fs::read_dir(&locked).is_ok() {
+                    return Ok(());
+                }
+                panic!("discover should fail on unreadable directories");
+            }
+            Err(err) => {
+                let message = format!("{err:#}");
+                assert!(
+                    message.contains("failed to read"),
+                    "unexpected error: {message}"
+                );
+            }
+        }
 
         Ok(())
     }
