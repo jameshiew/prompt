@@ -21,4 +21,4 @@ dep-check:
     cargo audit
 
 install:
-    cargo install --locked --path .
+    cargo auditable install --locked --path .
