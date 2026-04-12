@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-use ptree::TreeItem;
-use ptree::print_config::StyleWhen;
+use termtree::Tree;
 
 use crate::files::{FileMeta, Files, strip_dot_prefix};
 
@@ -22,17 +21,36 @@ impl FiletreeNode {
         }
     }
 
-    fn ptree(&self, cfg: &ptree::PrintConfig) -> Result<String> {
-        let mut buf = vec![];
-        ptree::write_tree_with(self, &mut buf, cfg)?;
-        Ok(String::from_utf8_lossy(&buf).to_string())
+    fn label(&self) -> String {
+        match &self.meta {
+            Some(meta) => match meta.read_status {
+                crate::files::ReadStatus::ExcludedExplicitly => {
+                    format!("{} (excluded)", &self.name)
+                }
+                crate::files::ReadStatus::ExcludedBinaryDetected => {
+                    format!("{} (auto-excluded, binary detected)", &self.name)
+                }
+                crate::files::ReadStatus::Read => self.name.clone(),
+                crate::files::ReadStatus::TokenCounted(token_count) => {
+                    format!("{} ({} tokens)", &self.name, token_count)
+                }
+            },
+            None => self.name.clone(),
+        }
+    }
+
+    fn to_tree(&self) -> Tree<String> {
+        let mut tree = Tree::new(self.label());
+        for child in self.children.values() {
+            tree.push(child.to_tree());
+        }
+        tree
     }
 
     pub fn tty_output(&self) -> Result<String> {
-        self.ptree(&ptree::PrintConfig {
-            styled: StyleWhen::Tty,
-            ..ptree::PrintConfig::default()
-        })
+        let tree = self.to_tree();
+        let output = format!("{tree}");
+        Ok(output)
     }
 
     pub fn insert_path(&mut self, components: &[&str], meta: Option<FileMeta>) {
@@ -56,42 +74,6 @@ impl FiletreeNode {
         if !is_last {
             entry.insert_path(&components[1..], meta);
         }
-    }
-}
-
-impl TreeItem for FiletreeNode {
-    type Child = Self;
-
-    fn write_self<W: std::io::Write>(
-        &self,
-        f: &mut W,
-        style: &ptree::Style,
-    ) -> std::io::Result<()> {
-        match &self.meta {
-            Some(meta) => {
-                let text = match meta.read_status {
-                    crate::files::ReadStatus::ExcludedExplicitly => {
-                        format!("{} (excluded)", &self.name)
-                    }
-                    crate::files::ReadStatus::ExcludedBinaryDetected => {
-                        format!("{} (auto-excluded, binary detected)", &self.name)
-                    }
-                    crate::files::ReadStatus::Read => self.name.to_owned(),
-                    crate::files::ReadStatus::TokenCounted(token_count) => {
-                        format!("{} ({} tokens)", &self.name, token_count)
-                    }
-                };
-                write!(f, "{}", style.paint(text))
-            }
-            None => {
-                write!(f, "{}", style.paint(&self.name))
-            }
-        }
-    }
-
-    fn children(&self) -> std::borrow::Cow<'_, [Self::Child]> {
-        let children = self.children.values().cloned().collect::<Vec<Self>>();
-        std::borrow::Cow::Owned(children)
     }
 }
 
