@@ -1,6 +1,4 @@
 use std::borrow::Cow;
-use std::fs::OpenOptions;
-use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -61,11 +59,9 @@ impl FileInfo {
             });
         }
 
-        let file = OpenOptions::new().read(true).open(&path)?;
-        let mut reader = BufReader::new(file);
-        let mut sample = [0u8; BINARY_DETECTION_BYTES];
-        let read = reader.read(&mut sample)?;
-        if is_probably_binary(&sample[..read]) {
+        let buffer = fs::read(&path).await?;
+        let sample_len = buffer.len().min(BINARY_DETECTION_BYTES);
+        if is_probably_binary(&buffer[..sample_len]) {
             return Ok(Self {
                 meta: FileMeta {
                     path,
@@ -74,8 +70,6 @@ impl FileInfo {
                 utf8: None,
             });
         };
-
-        let buffer = fs::read(&path).await?;
         let text = String::from_utf8_lossy(&buffer);
         let content = annotate_line_numbers(text);
         let meta = if count_tokens {
