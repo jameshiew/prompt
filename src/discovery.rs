@@ -6,6 +6,7 @@ use anyhow::Result;
 use dashmap::DashMap;
 use home::home_dir;
 use ignore::gitignore::Gitignore;
+use ignore::overrides::OverrideBuilder;
 use ignore::{Match as IgnoreMatch, WalkBuilder, WalkState};
 use tracing::warn;
 
@@ -23,7 +24,7 @@ pub struct DiscoveredFile {
 pub fn discover(
     path: PathBuf,
     extra_paths: Vec<PathBuf>,
-    exclude: Vec<glob::Pattern>,
+    exclude: Vec<String>,
     no_gitignore: bool,
 ) -> Result<Vec<DiscoveredFile>> {
     // Helper function to create error message for non-existent paths
@@ -81,12 +82,17 @@ pub fn discover(
     }
     let walker = walker.build_parallel();
 
+    let mut overrides_builder = OverrideBuilder::new("");
+    for pattern in &exclude {
+        overrides_builder.add(pattern)?;
+    }
+    let overrides = Arc::new(overrides_builder.build()?);
+
     let discovered = Arc::new(DashMap::new());
     let walk_error = Arc::new(Mutex::new(None));
-    let exclude = Arc::new(exclude);
     walker.run(|| {
         let match_bases = Arc::clone(&match_bases);
-        let exclude = Arc::clone(&exclude);
+        let overrides = Arc::clone(&overrides);
         let discovered = Arc::clone(&discovered);
         let walk_error = Arc::clone(&walk_error);
         Box::new(move |result| match result {
@@ -104,9 +110,7 @@ pub fn discover(
                 }
                 let match_path = relativize_for_match(&path, match_bases.as_slice());
                 let stored_path = strip_dot_prefix(&path).to_owned();
-                let excluded = exclude
-                    .iter()
-                    .any(|pattern| pattern.matches_path(&match_path));
+                let excluded = overrides.matched(&match_path, false).is_whitelist();
                 discovered
                     .entry(stored_path)
                     .and_modify(|stored_excluded| *stored_excluded |= excluded)
@@ -372,8 +376,7 @@ mod tests {
         fs::write(temp.path.join("target/excluded.txt"), b"exclude me")?;
         fs::write(temp.path.join("keep.txt"), b"keep me")?;
 
-        let pattern = glob::Pattern::new("target/**").expect("valid glob pattern");
-        let discovered = discover(temp.path.clone(), vec![], vec![pattern], false)?;
+        let discovered = discover(temp.path.clone(), vec![], vec!["target/**".into()], false)?;
 
         let excluded_entry = discovered
             .iter()
@@ -424,7 +427,7 @@ mod tests {
         let discovered = discover(
             main_rs.clone(),
             vec![],
-            vec![glob::Pattern::new("main.rs").expect("valid glob pattern")],
+            vec!["main.rs".into()],
             false,
         )?;
 
@@ -450,7 +453,7 @@ mod tests {
         let discovered = discover(
             main_rs.clone(),
             vec![temp.path.join("src")],
-            vec![glob::Pattern::new("main.rs").expect("valid glob pattern")],
+            vec!["main.rs".into()],
             false,
         )?;
 

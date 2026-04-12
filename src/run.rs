@@ -39,7 +39,7 @@ pub enum Format {
 pub async fn count(
     first_path: PathBuf,
     rest_paths: Vec<PathBuf>,
-    exclude: Vec<glob::Pattern>,
+    exclude: Vec<String>,
     include_gitignored: bool,
     top: Option<u32>,
 ) -> Result<()> {
@@ -83,7 +83,7 @@ struct Output {
 pub async fn generate(
     first_path: PathBuf,
     rest_paths: Vec<PathBuf>,
-    exclude: Vec<glob::Pattern>,
+    exclude: Vec<String>,
     no_gitignore: bool,
     stdout: bool,
     token_count: TokenCountOptions,

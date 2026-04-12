@@ -31,7 +31,7 @@ struct Cli {
         value_name = "PATTERN",
         help = "Glob patterns to exclude from the prompt, separated by commas",
     )]
-    exclude: Vec<glob::Pattern>,
+    exclude: Vec<String>,
     #[arg(short, long, global = true, value_enum, default_value_t = Format::default(), help = "Output format")]
     format: Format,
     #[arg(
