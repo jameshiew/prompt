@@ -424,12 +424,7 @@ mod tests {
         let main_rs = temp.path.join("src/main.rs");
         fs::write(&main_rs, b"fn main() {}\n")?;
 
-        let discovered = discover(
-            main_rs.clone(),
-            vec![],
-            vec!["main.rs".into()],
-            false,
-        )?;
+        let discovered = discover(main_rs.clone(), vec![], vec!["main.rs".into()], false)?;
 
         let main_entry = discovered
             .iter()
