@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-use dashmap::DashSet;
+use dashmap::DashMap;
 use home::home_dir;
 use ignore::gitignore::Gitignore;
 use ignore::{Match as IgnoreMatch, WalkBuilder, WalkState};
@@ -81,7 +81,7 @@ pub fn discover(
     }
     let walker = walker.build_parallel();
 
-    let discovered = Arc::new(DashSet::new());
+    let discovered = Arc::new(DashMap::new());
     let walk_error = Arc::new(Mutex::new(None));
     let exclude = Arc::new(exclude);
     walker.run(|| {
@@ -107,10 +107,10 @@ pub fn discover(
                 let excluded = exclude
                     .iter()
                     .any(|pattern| pattern.matches_path(&match_path));
-                discovered.insert(DiscoveredFile {
-                    path: stored_path,
-                    excluded,
-                });
+                discovered
+                    .entry(stored_path)
+                    .and_modify(|stored_excluded| *stored_excluded |= excluded)
+                    .or_insert(excluded);
                 WalkState::Continue
             }
             Err(err) => {
@@ -132,7 +132,10 @@ pub fn discover(
         return Err(err);
     }
     let discovered = Arc::try_unwrap(discovered).expect("walker should release all refs");
-    let mut discovered: Vec<_> = discovered.into_iter().collect();
+    let mut discovered: Vec<_> = discovered
+        .into_iter()
+        .map(|(path, excluded)| DiscoveredFile { path, excluded })
+        .collect();
     apply_promptignore(&mut discovered, &promptignore_roots);
     discovered.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(discovered)
@@ -141,6 +144,11 @@ pub fn discover(
 fn relativize_for_match(path: &Path, bases: &[PathBuf]) -> PathBuf {
     for base in bases {
         if let Ok(stripped) = path.strip_prefix(base) {
+            if stripped.as_os_str().is_empty()
+                && let Some(file_name) = base.file_name()
+            {
+                return PathBuf::from(file_name);
+            }
             return strip_dot_prefix(stripped).to_owned();
         }
     }
@@ -402,6 +410,63 @@ mod tests {
 
         let discovered = discover(temp.path.clone(), vec![], vec![], true)?;
         assert!(discovered.iter().any(|entry| entry.path == ignored));
+
+        Ok(())
+    }
+
+    #[test]
+    fn exact_file_root_can_be_excluded_by_name() -> Result<()> {
+        let temp = TempDir::new();
+        fs::create_dir_all(temp.path.join("src"))?;
+        let main_rs = temp.path.join("src/main.rs");
+        fs::write(&main_rs, b"fn main() {}\n")?;
+
+        let discovered = discover(
+            main_rs.clone(),
+            vec![],
+            vec![glob::Pattern::new("main.rs").expect("valid glob pattern")],
+            false,
+        )?;
+
+        let main_entry = discovered
+            .iter()
+            .find(|entry| entry.path == main_rs)
+            .expect("main.rs should be discovered");
+        assert!(
+            main_entry.excluded,
+            "exact file root should match name-based excludes"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn overlapping_roots_merge_to_excluded_when_any_match_excludes() -> Result<()> {
+        let temp = TempDir::new();
+        fs::create_dir_all(temp.path.join("src"))?;
+        let main_rs = temp.path.join("src/main.rs");
+        fs::write(&main_rs, b"fn main() {}\n")?;
+
+        let discovered = discover(
+            main_rs.clone(),
+            vec![temp.path.join("src")],
+            vec![glob::Pattern::new("main.rs").expect("valid glob pattern")],
+            false,
+        )?;
+
+        let entries_for_main = discovered
+            .iter()
+            .filter(|entry| entry.path == main_rs)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            entries_for_main.len(),
+            1,
+            "discovery should deduplicate by path"
+        );
+        assert!(
+            entries_for_main[0].excluded,
+            "exclusion should win when any discovery path excludes a file"
+        );
 
         Ok(())
     }
