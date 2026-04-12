@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 use termtree::Tree;
 
-use crate::files::{FileMeta, Files, strip_dot_prefix};
+use crate::files::{FileMeta, Files, ReadStatus, strip_dot_prefix};
 
 #[derive(Debug, Clone)]
 pub struct FiletreeNode {
@@ -22,21 +22,19 @@ impl FiletreeNode {
     }
 
     fn label(&self) -> String {
-        match &self.meta {
-            Some(meta) => match meta.read_status {
-                crate::files::ReadStatus::ExcludedExplicitly => {
-                    format!("{} (excluded)", &self.name)
+        self.meta.as_ref().map_or_else(
+            || self.name.clone(),
+            |meta| match meta.read_status {
+                ReadStatus::ExcludedExplicitly => format!("{} (excluded)", self.name),
+                ReadStatus::ExcludedBinaryDetected => {
+                    format!("{} (auto-excluded, binary detected)", self.name)
                 }
-                crate::files::ReadStatus::ExcludedBinaryDetected => {
-                    format!("{} (auto-excluded, binary detected)", &self.name)
-                }
-                crate::files::ReadStatus::Read => self.name.clone(),
-                crate::files::ReadStatus::TokenCounted(token_count) => {
-                    format!("{} ({} tokens)", &self.name, token_count)
+                ReadStatus::Read => self.name.clone(),
+                ReadStatus::TokenCounted(token_count) => {
+                    format!("{} ({} tokens)", self.name, token_count)
                 }
             },
-            None => self.name.clone(),
-        }
+        )
     }
 
     fn to_tree(&self) -> Tree<String> {
