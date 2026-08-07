@@ -153,9 +153,16 @@ impl Serialize for Files {
 impl Files {
     pub async fn read_from(discovered: Vec<DiscoveredFile>, count_tokens: bool) -> Result<Self> {
         let files = Self::default();
+        let mut tasks = tokio::task::JoinSet::new();
         for disc in discovered {
-            let info = FileInfo::new(disc.path.clone(), disc.excluded, count_tokens).await?;
-            files.insert(disc.path, info);
+            tasks.spawn(async move {
+                let info = FileInfo::new(disc.path.clone(), disc.excluded, count_tokens).await?;
+                anyhow::Ok((disc.path, info))
+            });
+        }
+        while let Some(result) = tasks.join_next().await {
+            let (path, info) = result??;
+            files.insert(path, info);
         }
         Ok(files)
     }
@@ -198,11 +205,10 @@ impl Files {
 fn annotate_line_numbers(text: Cow<str>) -> String {
     let line_count = text.lines().count();
     if line_count == 0 {
-        return "".to_string();
+        return String::new();
     }
 
-    let digits = ((line_count as f64).log10().floor() as usize) + 1;
-    let width = digits;
+    let width = line_count.ilog10() as usize + 1;
 
     let mut numbered = String::new();
     for (i, line) in text.lines().enumerate() {
