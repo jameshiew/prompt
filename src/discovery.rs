@@ -97,15 +97,18 @@ pub fn discover(
         let walk_error = Arc::clone(&walk_error);
         Box::new(move |result| match result {
             Ok(dir_entry) => {
+                let Some(file_type) = dir_entry.file_type() else {
+                    return WalkState::Continue;
+                };
                 let path = dir_entry.path().to_owned();
-                if path.is_dir() {
+                if file_type.is_dir() {
                     // including '.git' in .promptignore doesn't always reliably work e.g. if only included in the global .promptignore
                     if path.components().any(|c| c.as_os_str() == ".git") {
                         return WalkState::Skip;
                     }
                     return WalkState::Continue;
                 }
-                if path.is_symlink() {
+                if file_type.is_symlink() {
                     return WalkState::Skip;
                 }
                 let match_path = relativize_for_match(&path, match_bases.as_slice());
@@ -317,7 +320,7 @@ fn prompt_home_dir() -> Option<PathBuf> {
     } else {
         home_dir()?
     };
-    path.canonicalize().map(Some).unwrap_or(Some(path))
+    Some(path.canonicalize().unwrap_or(path))
 }
 
 #[cfg(test)]
