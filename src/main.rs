@@ -60,8 +60,9 @@ struct OutputOptions {
         value_name = "OPTION",
         value_enum,
         default_value_t = TokenCountOptions::default(),
+        default_missing_value = "each",
         num_args = 0..=1,
-        help = "Token count nothing, the final output or also each individual file"
+        help = "What to token count: nothing, the final output, or also each individual file"
     )]
     token_count: TokenCountOptions,
 }
