@@ -8,6 +8,7 @@ use serde::Serialize;
 
 use crate::discovery::discover;
 use crate::files::{Files, ReadStatus};
+use crate::fmt::group_digits;
 use crate::tokenizer::tokenize;
 use crate::tree::FiletreeNode;
 
@@ -57,7 +58,7 @@ pub async fn count(
                 }
             })
             .sum::<usize>();
-        println!("Total tokens: {total_tokens}");
+        println!("Total tokens: {}", group_digits(total_tokens));
     }
     Ok(())
 }
@@ -128,10 +129,14 @@ pub async fn generate(
         write_document_separator(&mut summary)?;
     }
     if let Some(token_count) = final_token_count {
-        println!("{token_count} total tokens copied ({format})");
+        println!("{} total tokens copied ({format})", group_digits(token_count));
     }
     if !excluded.is_empty() {
-        println!("Excluded {} files: {:?}", excluded.len(), excluded);
+        println!();
+        println!("Excluded {} files:", group_digits(excluded.len()));
+        println!();
+        let excluded_tree = FiletreeNode::from_paths(excluded.iter().map(PathBuf::as_path));
+        println!("{}", excluded_tree.tty_output());
     }
 
     Ok(())
@@ -199,7 +204,12 @@ fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
     for entry in entries.iter().take(top as usize) {
         let path = entry.key();
         let token_count = entry.value().meta.token_count_or_zero();
-        writeln!(writer, "{}: {} tokens", path.display(), token_count)?;
+        writeln!(
+            writer,
+            "{}: {} tokens",
+            path.display(),
+            group_digits(token_count)
+        )?;
         top_total_tokens += token_count;
         top_file_count += 1;
     }
@@ -207,11 +217,13 @@ fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
     writeln!(writer)?;
     writeln!(
         writer,
-        "Top {top_file_count} files = {top_total_tokens} tokens",
+        "Top {top_file_count} files = {} tokens",
+        group_digits(top_total_tokens)
     )?;
     writeln!(
         writer,
-        "All {all_file_count} files = {all_total_tokens} tokens"
+        "All {all_file_count} files = {} tokens",
+        group_digits(all_total_tokens)
     )?;
     if skipped_files > 0 {
         writeln!(

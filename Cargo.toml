@@ -21,6 +21,7 @@ dashmap = "6"
 home = "0.5"
 ignore = "0.4"
 infer = "0.19.0"
+num-format = { version = "0.4.4", features = ["with-system-locale"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_norway = "0.9"
