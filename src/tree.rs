@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use anyhow::Result;
 use termtree::Tree;
 
 use crate::files::{FileMeta, Files, ReadStatus, strip_dot_prefix};
@@ -45,10 +44,8 @@ impl FiletreeNode {
         tree
     }
 
-    pub fn tty_output(&self) -> Result<String> {
-        let tree = self.to_tree();
-        let output = format!("{tree}");
-        Ok(output)
+    pub fn tty_output(&self) -> String {
+        self.to_tree().to_string()
     }
 
     pub fn insert_path(&mut self, components: &[&str], meta: Option<FileMeta>) {
@@ -75,24 +72,15 @@ impl FiletreeNode {
     }
 }
 
-impl TryFrom<&Files> for FiletreeNode {
-    type Error = anyhow::Error;
-
-    fn try_from(files: &Files) -> Result<Self> {
-        let paths = files.iter().map(|r| r.key().clone());
-
+impl From<&Files> for FiletreeNode {
+    fn from(files: &Files) -> Self {
         // Build a tree of files collected
         let mut root = Self::new(".", None);
-        for path in paths {
-            let meta = files
-                .get(&path)
-                .expect("should be able to get file contents from map")
-                .value()
-                .meta
-                .clone();
+        for entry in files.iter() {
+            let meta = entry.value().meta.clone();
 
             // Remove leading "./" since the root node is the "."
-            let path = strip_dot_prefix(&path);
+            let path = strip_dot_prefix(entry.key());
 
             let components = path
                 .components()
@@ -101,6 +89,6 @@ impl TryFrom<&Files> for FiletreeNode {
 
             root.insert_path(&components, Some(meta));
         }
-        Ok(root)
+        root
     }
 }

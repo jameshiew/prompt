@@ -1,31 +1,25 @@
 use std::io::Write;
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use arboard::Clipboard;
 use clap::ValueEnum;
 use serde::Serialize;
-use strum::EnumString;
 
 use crate::discovery::discover;
 use crate::files::{Files, ReadStatus};
 use crate::tokenizer::tokenize;
 use crate::tree::FiletreeNode;
 
-#[derive(Default, Debug, Clone, Copy, EnumString, ValueEnum, Eq, Hash, PartialEq)]
+#[derive(Default, Debug, Clone, Copy, ValueEnum, Eq, Hash, PartialEq)]
 pub enum TokenCountOptions {
-    #[strum(serialize = "none")]
     None,
     #[default]
-    #[strum(serialize = "final")]
     Final,
-    #[strum(serialize = "each")]
     Each,
 }
 
-#[derive(
-    Default, Debug, strum::Display, Clone, Copy, EnumString, ValueEnum, Eq, Hash, PartialEq,
-)]
+#[derive(Default, Debug, strum::Display, Clone, Copy, ValueEnum, Eq, Hash, PartialEq)]
 pub enum Format {
     #[default]
     #[strum(serialize = "plaintext")]
@@ -40,15 +34,10 @@ pub async fn count(
     first_path: PathBuf,
     rest_paths: Vec<PathBuf>,
     exclude: Vec<String>,
-    include_gitignored: bool,
+    no_gitignore: bool,
     top: Option<u32>,
 ) -> Result<()> {
-    let discovered = discover(
-        first_path.clone(),
-        rest_paths.to_vec(),
-        exclude,
-        include_gitignored,
-    )?;
+    let discovered = discover(first_path, rest_paths, exclude, no_gitignore)?;
     let files = Files::read_from(discovered, true).await?;
 
     if let Some(count) = top {
@@ -68,7 +57,6 @@ pub async fn count(
                 }
             })
             .sum::<usize>();
-        let total_tokens = total_tokens.to_string();
         println!("Total tokens: {total_tokens}");
     }
     Ok(())
@@ -89,33 +77,28 @@ pub async fn generate(
     token_count: TokenCountOptions,
     format: Format,
 ) -> Result<()> {
-    let discovered = discover(
-        first_path.clone(),
-        rest_paths.to_vec(),
-        exclude,
-        no_gitignore,
-    )?;
+    let discovered = discover(first_path, rest_paths, exclude, no_gitignore)?;
     let files =
         Files::read_from(discovered, matches!(token_count, TokenCountOptions::Each)).await?;
 
-    let tree = FiletreeNode::try_from(&files)?;
+    let tree = FiletreeNode::from(&files);
 
     let excluded = files.get_excluded();
 
     let output = match format {
         Format::Plaintext => {
             let mut prompt = vec![];
-            write_filetree(&mut prompt, tree.tty_output()?)?;
+            write_filetree(&mut prompt, tree.tty_output())?;
             write_document_separator(&mut prompt)?;
             write_files_content(&mut prompt, files)?;
             String::from_utf8_lossy(&prompt).into_owned()
         }
         Format::Json => serde_json::to_string(&Output {
-            tree: tree.tty_output()?,
+            tree: tree.tty_output(),
             files,
         })?,
         Format::Yaml => serde_norway::to_string(&Output {
-            tree: tree.tty_output()?,
+            tree: tree.tty_output(),
             files,
         })?,
     };
@@ -133,12 +116,15 @@ pub async fn generate(
         return Ok(()); // no summary if printing prompt to stdout
     }
 
-    let mut clipboard = Clipboard::new()?;
-    clipboard.set_text(output)?;
+    let mut clipboard =
+        Clipboard::new().context("failed to access the system clipboard (try --stdout instead)")?;
+    clipboard
+        .set_text(output)
+        .context("failed to copy the prompt to the clipboard")?;
 
     {
         let mut summary = std::io::stdout();
-        write_filetree(&mut summary, tree.tty_output()?)?;
+        write_filetree(&mut summary, tree.tty_output())?;
         write_document_separator(&mut summary)?;
     }
     if let Some(token_count) = final_token_count {
@@ -203,22 +189,19 @@ fn write_top(mut writer: impl Write, files: &Files, top: u32) -> Result<()> {
             .cmp(&a.value().meta.token_count_or_zero())
     });
 
+    let all_total_tokens: usize = entries
+        .iter()
+        .map(|entry| entry.value().meta.token_count_or_zero())
+        .sum();
+
     let mut top_total_tokens = 0;
     let mut top_file_count = 0;
-    let mut all_total_tokens = 0;
-
     for entry in entries.iter().take(top as usize) {
         let path = entry.key();
         let token_count = entry.value().meta.token_count_or_zero();
         writeln!(writer, "{}: {} tokens", path.display(), token_count)?;
         top_total_tokens += token_count;
-        all_total_tokens += token_count;
         top_file_count += 1;
-    }
-
-    for entry in entries.iter().skip(top as usize) {
-        let token_count = entry.value().meta.token_count_or_zero();
-        all_total_tokens += token_count;
     }
 
     writeln!(writer)?;
@@ -318,10 +301,10 @@ mod tests {
         }];
 
         let files = Files::read_from(discovered, false).await?;
-        let tree = FiletreeNode::try_from(&files)?;
+        let tree = FiletreeNode::from(&files);
 
         let mut buffer = Vec::new();
-        write_filetree(&mut buffer, tree.tty_output()?)?;
+        write_filetree(&mut buffer, tree.tty_output())?;
         write_document_separator(&mut buffer)?;
         write_files_content(&mut buffer, files)?;
 
