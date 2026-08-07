@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use dashmap::DashMap;
 use dashmap::mapref::multiple::RefMulti;
 use dashmap::mapref::one::Ref;
@@ -59,7 +59,9 @@ impl FileInfo {
             });
         }
 
-        let buffer = fs::read(&path).await?;
+        let buffer = fs::read(&path)
+            .await
+            .with_context(|| format!("failed to read {}", path.display()))?;
         let sample_len = buffer.len().min(BINARY_DETECTION_BYTES);
         if is_probably_binary(&buffer[..sample_len]) {
             return Ok(Self {
