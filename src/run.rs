@@ -135,7 +135,10 @@ pub async fn generate(
         println!("{}", excluded_tree.tty_output());
     }
     if let Some(token_count) = final_token_count {
-        println!("{} total tokens copied ({format})", group_digits(token_count));
+        println!(
+            "{} total tokens copied ({format})",
+            group_digits(token_count)
+        );
     }
 
     Ok(())

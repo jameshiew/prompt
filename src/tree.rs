@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use termtree::Tree;
-
-use std::path::Path;
 
 use crate::files::{FileMeta, Files, ReadStatus, strip_dot_prefix};
 use crate::fmt::group_digits;
