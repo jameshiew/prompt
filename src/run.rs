@@ -128,15 +128,14 @@ pub async fn generate(
         write_filetree(&mut summary, tree.tty_output())?;
         write_document_separator(&mut summary)?;
     }
-    if let Some(token_count) = final_token_count {
-        println!("{} total tokens copied ({format})", group_digits(token_count));
-    }
     if !excluded.is_empty() {
-        println!();
         println!("Excluded {} files:", group_digits(excluded.len()));
         println!();
         let excluded_tree = FiletreeNode::from_paths(excluded.iter().map(PathBuf::as_path));
         println!("{}", excluded_tree.tty_output());
+    }
+    if let Some(token_count) = final_token_count {
+        println!("{} total tokens copied ({format})", group_digits(token_count));
     }
 
     Ok(())
