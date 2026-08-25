@@ -17,6 +17,6 @@ When asking a chat-based LLM like ChatGPT o1 something about code, you want to p
 ```shell
 prompt # copies straight to clipboard and prints summary
 prompt --format json --stdout # prints prompt content as json to stdout
-prompt -p src/ app/ -e out/  # include/exclude certain paths/globs
+prompt -p src/ app/ -e out/ target/ # include/exclude paths and globs
 prompt --no-gitignore        # include files that are normally skipped by gitignore
 ```
