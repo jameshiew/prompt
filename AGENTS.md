@@ -30,3 +30,4 @@
 - For overlapping include roots, apply `.promptignore` files from the shallowest root so parent rules remain active and nested whitelist rules have deterministic precedence.
 - clap flags with an optional value (`num_args = 0..=1`) also need `default_missing_value`, otherwise the bare flag errors with "required argument was not provided".
 - Use `subcommand_precedence_over_arg` when a variadic global option can precede a subcommand.
+- Convert trailing-slash CLI exclusions to descendant globs because discovery matches files, not directories.
