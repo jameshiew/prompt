@@ -6,7 +6,7 @@ use anyhow::Result;
 use dashmap::DashMap;
 use home::home_dir;
 use ignore::gitignore::Gitignore;
-use ignore::overrides::OverrideBuilder;
+use ignore::overrides::{Override, OverrideBuilder};
 use ignore::{Match as IgnoreMatch, WalkBuilder, WalkState};
 use tracing::warn;
 
@@ -111,9 +111,8 @@ pub fn discover(
                 if file_type.is_symlink() {
                     return WalkState::Skip;
                 }
-                let match_path = relativize_for_match(&path, match_bases.as_slice());
                 let stored_path = strip_dot_prefix(&path).to_owned();
-                let excluded = overrides.matched(&match_path, false).is_whitelist();
+                let excluded = matches_exclude(&path, match_bases.as_slice(), &overrides);
                 discovered
                     .entry(stored_path)
                     .and_modify(|stored_excluded| *stored_excluded |= excluded)
@@ -148,18 +147,27 @@ pub fn discover(
     Ok(discovered)
 }
 
-fn relativize_for_match(path: &Path, bases: &[PathBuf]) -> PathBuf {
+fn matches_exclude(path: &Path, bases: &[PathBuf], overrides: &Override) -> bool {
+    let mut matched_base = false;
     for base in bases {
         if let Ok(stripped) = path.strip_prefix(base) {
-            if stripped.as_os_str().is_empty()
+            matched_base = true;
+            let match_path = if stripped.as_os_str().is_empty()
                 && let Some(file_name) = base.file_name()
             {
-                return PathBuf::from(file_name);
+                Path::new(file_name)
+            } else {
+                strip_dot_prefix(stripped)
+            };
+            if overrides.matched(match_path, false).is_whitelist() {
+                return true;
             }
-            return strip_dot_prefix(stripped).to_owned();
         }
     }
-    strip_dot_prefix(path).to_owned()
+    !matched_base
+        && overrides
+            .matched(strip_dot_prefix(path), false)
+            .is_whitelist()
 }
 
 fn canonicalize_for_promptignore(path: &Path) -> PathBuf {
@@ -468,6 +476,34 @@ mod tests {
             entries_for_main[0].excluded,
             "exclusion should win when any discovery path excludes a file"
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn overlapping_directory_roots_apply_excludes_for_each_root_order() -> Result<()> {
+        let temp = TempDir::new();
+        let nested_root = temp.path.join("src");
+        let main_rs = nested_root.join("nested/main.rs");
+        fs::create_dir_all(main_rs.parent().expect("main.rs should have a parent"))?;
+        fs::write(&main_rs, b"fn main() {}\n")?;
+
+        for (path, extra_path) in [
+            (temp.path.clone(), nested_root.clone()),
+            (nested_root, temp.path.clone()),
+        ] {
+            let discovered =
+                discover(path, vec![extra_path], vec!["nested/main.rs".into()], false)?;
+
+            let main_entry = discovered
+                .iter()
+                .find(|entry| entry.path == main_rs)
+                .expect("main.rs should be discovered");
+            assert!(
+                main_entry.excluded,
+                "exclude should match relative to the nested root"
+            );
+        }
 
         Ok(())
     }

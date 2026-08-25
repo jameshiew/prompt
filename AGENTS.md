@@ -26,7 +26,7 @@
 
 - Keep `deny.toml` limited to policy that differs from cargo-deny defaults.
 - Avoid `serde_yml`/`libyml` because they're flagged by RUSTSEC-2025-0067/0068; prefer maintained YAML serializers (e.g. `serde_norway`).
-- When discovery visits the same file through overlapping include roots, merge by file path and let `excluded = true` win to keep exclusion behavior deterministic and safe.
+- For overlapping include roots, evaluate explicit exclusions relative to every matching root. Merge by file path and let `excluded = true` win.
 - For overlapping include roots, apply `.promptignore` files from the shallowest root so parent rules remain active and nested whitelist rules have deterministic precedence.
 - clap flags with an optional value (`num_args = 0..=1`) also need `default_missing_value`, otherwise the bare flag errors with "required argument was not provided".
 - Use `subcommand_precedence_over_arg` when a variadic global option can precede a subcommand.
