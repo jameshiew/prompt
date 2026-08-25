@@ -190,7 +190,7 @@ fn find_root_for_path<'a>(path: &Path, roots: &'a [PathBuf]) -> Option<&'a PathB
     roots
         .iter()
         .filter(|root| path.starts_with(root))
-        .max_by_key(|root| root.components().count())
+        .min_by_key(|root| root.components().count())
 }
 
 struct PromptignoreMatcher {
@@ -529,6 +529,54 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    fn assert_overlapping_promptignore_roots(parent_first: bool) -> Result<()> {
+        let temp = TempDir::new();
+        let nested = temp.path.join("src");
+        fs::create_dir_all(&nested)?;
+        fs::write(temp.path.join(".promptignore"), b"src/\n")?;
+        fs::write(nested.join(".promptignore"), b"!keep.txt\n")?;
+        let ignored = nested.join("ignored.txt");
+        let keep = nested.join("keep.txt");
+        fs::write(&ignored, b"drop")?;
+        fs::write(&keep, b"keep")?;
+
+        let (path, extra_paths) = if parent_first {
+            (temp.path.clone(), vec![nested])
+        } else {
+            (nested, vec![temp.path.clone()])
+        };
+        let discovered = discover(path, extra_paths, vec![], false)?;
+
+        let ignored_entry = discovered
+            .iter()
+            .find(|entry| entry.path == ignored)
+            .expect("ignored.txt should be present");
+        assert!(
+            ignored_entry.excluded,
+            "parent rule should exclude ignored.txt"
+        );
+        let keep_entry = discovered
+            .iter()
+            .find(|entry| entry.path == keep)
+            .expect("keep.txt should be present");
+        assert!(
+            !keep_entry.excluded,
+            "nested whitelist should re-include keep.txt"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn overlapping_promptignore_roots_preserve_rules_parent_first() -> Result<()> {
+        assert_overlapping_promptignore_roots(true)
+    }
+
+    #[test]
+    fn overlapping_promptignore_roots_preserve_rules_nested_first() -> Result<()> {
+        assert_overlapping_promptignore_roots(false)
     }
 
     #[test]
