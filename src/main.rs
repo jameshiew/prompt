@@ -9,7 +9,11 @@ use tracing_subscriber::EnvFilter;
 const BINARY_NAME: &str = "prompt";
 
 #[derive(Parser)]
-#[command(version, subcommand_required = false)]
+#[command(
+    version,
+    subcommand_required = false,
+    subcommand_precedence_over_arg = true
+)]
 struct Cli {
     #[clap(subcommand)]
     command: Option<Command>,
