@@ -1,98 +1,13 @@
-use std::path::PathBuf;
+mod cli;
 
 use anyhow::Result;
-use clap::{Args, CommandFactory, Parser, Subcommand};
-use clap_complete::{Shell, generate};
-use prompt::run::{self, Format, TokenCountOptions};
+use clap::{CommandFactory, Parser};
+use clap_complete::generate;
+use cli::{Cli, Command};
+use prompt::run;
 use tracing_subscriber::EnvFilter;
 
 const BINARY_NAME: &str = "prompt";
-
-#[derive(Parser)]
-#[command(
-    version,
-    subcommand_required = false,
-    subcommand_precedence_over_arg = true
-)]
-struct Cli {
-    #[clap(subcommand)]
-    command: Option<Command>,
-    #[arg(
-        short,
-        long,
-        global = true,
-        num_args = 1..,
-        value_name = "PATH",
-        default_value = ".",
-        help = "Paths to the files/directories for reading into a prompt",
-    )]
-    paths: Vec<PathBuf>,
-    #[arg(
-        short,
-        long,
-        global = true,
-        num_args = 1..,
-        value_name = "PATTERN",
-        help = "Glob patterns to exclude from the prompt, separated by commas",
-    )]
-    exclude: Vec<String>,
-    #[arg(short, long, global = true, value_enum, default_value_t = Format::default(), help = "Output format")]
-    format: Format,
-    #[arg(
-        long,
-        global = true,
-        help = "Include files even if they would normally be excluded by .gitignore"
-    )]
-    no_gitignore: bool,
-    #[command(flatten)]
-    output: OutputOptions,
-}
-
-// default - prompt clip, summary stdout
-// prompt stdout, summary NO
-// prompt stdout, summary stdout
-//
-#[derive(Debug, Args)]
-struct OutputOptions {
-    #[arg(
-        long,
-        help = "Print prompt to stdout with no summary instead of copying to clipboard"
-    )]
-    stdout: bool,
-    #[arg(
-        long,
-        value_name = "OPTION",
-        value_enum,
-        default_value_t = TokenCountOptions::default(),
-        default_missing_value = "each",
-        num_args = 0..=1,
-        help = "What to token count: nothing, the final output, or also each individual file"
-    )]
-    token_count: TokenCountOptions,
-}
-
-#[derive(Debug, Default, Subcommand, Clone)]
-enum Command {
-    /// (default) Generate a prompt that includes matching files (copies to clipboard by default)
-    #[default]
-    Generate,
-    /// Generate shell completions
-    ShellCompletions {
-        #[arg()]
-        shell: Shell,
-    },
-    /// Count tokens from matching files
-    Count {
-        #[arg(
-        long,
-        value_name = "COUNT",
-        help = "List top files by token count",
-        default_missing_value = "10",
-        num_args = 0..=1
-    )]
-        top: Option<u32>,
-    },
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
