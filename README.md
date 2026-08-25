@@ -18,5 +18,8 @@ When asking a chat-based LLM like ChatGPT o1 something about code, you want to p
 prompt # copies straight to clipboard and prints summary
 prompt generate --format json --stdout # prints prompt content as json to stdout
 prompt -p src/ app/ -e out/ target/ # include/exclude paths and globs
+prompt count -p src/ --top # lists the ten files with the most tokens
 prompt --no-gitignore        # include files that are normally skipped by gitignore
 ```
+
+Put options for an explicit command after the command name.

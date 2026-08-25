@@ -20,20 +20,7 @@ fn assert_runs_count(args: &[&str]) {
 }
 
 #[test]
-fn parses_variadic_global_options_before_subcommand() {
-    assert_runs_count(&[
-        "-p",
-        "src",
-        "Cargo.toml",
-        "-e",
-        "never-match-one",
-        "never-match-two",
-        "count",
-    ]);
-}
-
-#[test]
-fn parses_variadic_global_options_after_subcommand() {
+fn parses_variadic_file_options_for_count() {
     assert_runs_count(&[
         "count",
         "-p",

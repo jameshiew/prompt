@@ -29,7 +29,7 @@
 - For overlapping include roots, evaluate explicit exclusions relative to every matching root. Merge by file path and let `excluded = true` win.
 - For overlapping include roots, apply `.promptignore` files from the shallowest root so parent rules remain active and nested whitelist rules have deterministic precedence.
 - clap flags with an optional value (`num_args = 0..=1`) also need `default_missing_value`, otherwise the bare flag errors with "required argument was not provided".
-- Use `subcommand_precedence_over_arg` when a variadic global option can precede a subcommand.
+- Use `subcommand_precedence_over_arg` when a variadic top-level option can precede a subcommand.
 - Convert trailing-slash CLI exclusions to descendant globs because discovery matches files, not directories.
 - Pass each `--exclude` pattern as a separate argument. A comma remains part of a literal pattern.
-- Define subcommand-specific flags on the applicable `Command` variant so clap rejects them for other commands.
+- Define subcommand-specific flags on the applicable `Command` variant so clap rejects them for other commands. Keep default-command values unset until dispatch so explicit subcommands can reject top-level options.

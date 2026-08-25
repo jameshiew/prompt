@@ -16,25 +16,21 @@ async fn main() -> Result<()> {
         .try_init()
         .expect("should be able to initialize the logger");
 
-    let cli = Cli::parse();
-
-    let Some((first_path, rest_paths)) = cli.paths.split_first() else {
-        unreachable!("should have at least one path by default");
-    };
-    let first_path = first_path.to_owned();
-    let rest_paths = rest_paths.to_vec();
-
-    let command = cli.command.unwrap_or_default();
+    let command = Cli::parse()
+        .try_into_command()
+        .unwrap_or_else(|error| error.exit());
     match command {
-        Command::Generate { stdout } => {
+        Command::Generate(generate) => {
+            let (first_path, rest_paths, exclude, no_gitignore) =
+                generate.options.files.into_parts();
             run::generate(
                 first_path,
                 rest_paths,
-                cli.exclude,
-                cli.no_gitignore,
-                stdout,
-                cli.output.token_count,
-                cli.format,
+                exclude,
+                no_gitignore,
+                generate.stdout,
+                generate.options.token_count.unwrap_or_default(),
+                generate.options.format.unwrap_or_default(),
             )
             .await
         }
@@ -43,8 +39,9 @@ async fn main() -> Result<()> {
             generate(shell, &mut cmd, BINARY_NAME, &mut std::io::stdout());
             Ok(())
         }
-        Command::Count { top } => {
-            run::count(first_path, rest_paths, cli.exclude, cli.no_gitignore, top).await
+        Command::Count(count) => {
+            let (first_path, rest_paths, exclude, no_gitignore) = count.files.into_parts();
+            run::count(first_path, rest_paths, exclude, no_gitignore, count.top).await
         }
     }
 }
