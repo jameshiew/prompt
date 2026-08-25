@@ -84,7 +84,11 @@ pub fn discover(
 
     let mut overrides_builder = OverrideBuilder::new("");
     for pattern in &exclude {
-        overrides_builder.add(pattern)?;
+        if pattern.ends_with('/') {
+            overrides_builder.add(&format!("{pattern}**"))?;
+        } else {
+            overrides_builder.add(pattern)?;
+        }
     }
     let overrides = Arc::new(overrides_builder.build()?);
 
@@ -394,6 +398,35 @@ mod tests {
             .find(|entry| entry.path.ends_with("target/excluded.txt"))
             .expect("expected excluded file in discovery results");
         assert!(excluded_entry.excluded, "absolute-path glob did not match");
+
+        Ok(())
+    }
+
+    #[test]
+    fn directory_excludes_apply_to_descendant_files() -> Result<()> {
+        let temp = TempDir::new();
+        fs::create_dir_all(temp.path.join("out/nested"))?;
+        let direct = temp.path.join("out/direct.txt");
+        let nested = temp.path.join("out/nested/child.txt");
+        let keep = temp.path.join("keep.txt");
+        fs::write(&direct, b"exclude me")?;
+        fs::write(&nested, b"exclude me too")?;
+        fs::write(&keep, b"keep me")?;
+
+        let discovered = discover(temp.path.clone(), vec![], vec!["out/".into()], false)?;
+
+        for excluded in [direct, nested] {
+            let entry = discovered
+                .iter()
+                .find(|entry| entry.path == excluded)
+                .expect("descendant file should be discovered");
+            assert!(entry.excluded, "directory exclude should match descendants");
+        }
+        let keep_entry = discovered
+            .iter()
+            .find(|entry| entry.path == keep)
+            .expect("unmatched file should be discovered");
+        assert!(!keep_entry.excluded);
 
         Ok(())
     }
