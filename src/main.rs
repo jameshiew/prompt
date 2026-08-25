@@ -26,13 +26,13 @@ async fn main() -> Result<()> {
 
     let command = cli.command.unwrap_or_default();
     match command {
-        Command::Generate => {
+        Command::Generate { stdout } => {
             run::generate(
                 first_path,
                 rest_paths,
                 cli.exclude,
                 cli.no_gitignore,
-                cli.output.stdout,
+                stdout,
                 cli.output.token_count,
                 cli.format,
             )

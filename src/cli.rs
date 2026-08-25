@@ -48,11 +48,6 @@ pub struct Cli {
 pub struct OutputOptions {
     #[arg(
         long,
-        help = "Print prompt to stdout with no summary instead of copying to clipboard"
-    )]
-    pub(crate) stdout: bool,
-    #[arg(
-        long,
         value_name = "OPTION",
         value_enum,
         default_value_t = TokenCountOptions::default(),
@@ -63,11 +58,16 @@ pub struct OutputOptions {
     pub(crate) token_count: TokenCountOptions,
 }
 
-#[derive(Debug, Default, Subcommand, Clone)]
+#[derive(Debug, Subcommand, Clone)]
 pub enum Command {
     /// (default) Generate a prompt that includes matching files (copies to clipboard by default)
-    #[default]
-    Generate,
+    Generate {
+        #[arg(
+            long,
+            help = "Print prompt to stdout with no summary instead of copying to clipboard"
+        )]
+        stdout: bool,
+    },
     /// Generate shell completions
     ShellCompletions {
         #[arg()]
@@ -84,6 +84,12 @@ pub enum Command {
     )]
         top: Option<u32>,
     },
+}
+
+impl Default for Command {
+    fn default() -> Self {
+        Self::Generate { stdout: false }
+    }
 }
 
 #[cfg(test)]
@@ -123,5 +129,34 @@ mod tests {
 
         assert!(help.contains("provide each pattern as a separate argument"));
         assert!(!help.contains("separated by commas"));
+    }
+
+    #[test]
+    fn parses_stdout_for_generate() {
+        let cli = Cli::try_parse_from(["prompt", "generate", "--stdout"])
+            .expect("generate should accept --stdout");
+
+        assert!(matches!(
+            cli.command,
+            Some(Command::Generate { stdout: true })
+        ));
+    }
+
+    #[test]
+    fn rejects_stdout_without_generate() {
+        let error = Cli::try_parse_from(["prompt", "--stdout"])
+            .err()
+            .expect("the top-level command should reject --stdout");
+
+        assert_eq!(error.kind(), clap::error::ErrorKind::UnknownArgument);
+    }
+
+    #[test]
+    fn rejects_stdout_for_count() {
+        let error = Cli::try_parse_from(["prompt", "count", "--stdout"])
+            .err()
+            .expect("count should reject --stdout");
+
+        assert_eq!(error.kind(), clap::error::ErrorKind::UnknownArgument);
     }
 }
