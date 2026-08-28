@@ -35,3 +35,4 @@
 - Define subcommand-specific flags on the applicable `Command` variant so clap rejects them for other commands. Keep default-command values unset until dispatch so explicit subcommands can reject top-level options.
 - Use `cargo deny check` for RustSec advisory checks. Do not run `cargo audit` for the same lockfile.
 - Use `pinact run --fix=false --no-api` to check action pins without network access.
+- Encode the complete input in one BPE call. Independent chunks can change merges at their boundaries.
