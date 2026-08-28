@@ -6,6 +6,10 @@ clippy:
 
 lint: clippy
     actionlint
+    pinact run --fix=false --no-api
+
+pin-actions:
+    pinact run
 
 test:
     cargo nextest run
