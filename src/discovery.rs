@@ -106,8 +106,11 @@ pub fn discover(
                 };
                 let path = dir_entry.path().to_owned();
                 if file_type.is_dir() {
-                    // including '.git' in .promptignore doesn't always reliably work e.g. if only included in the global .promptignore
-                    if path.components().any(|c| c.as_os_str() == ".git") {
+                    // Always skip Git metadata directories. A global .promptignore does not reliably exclude them.
+                    if path
+                        .components()
+                        .any(|c| c.as_os_str().eq_ignore_ascii_case(".git"))
+                    {
                         return WalkState::Skip;
                     }
                     return WalkState::Continue;
@@ -457,6 +460,20 @@ mod tests {
 
         let discovered = discover(temp.path.clone(), vec![], vec![], true)?;
         assert!(discovered.iter().any(|entry| entry.path == ignored));
+
+        Ok(())
+    }
+
+    #[test]
+    fn git_metadata_directories_are_skipped_case_insensitively() -> Result<()> {
+        let temp = TempDir::new();
+        let metadata_file = temp.path.join(".GIT/config");
+        fs::create_dir_all(metadata_file.parent().expect("config should have a parent"))?;
+        fs::write(&metadata_file, b"secret")?;
+
+        let discovered = discover(temp.path.clone(), vec![], vec![], true)?;
+
+        assert!(discovered.iter().all(|entry| entry.path != metadata_file));
 
         Ok(())
     }

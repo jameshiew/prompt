@@ -36,3 +36,4 @@
 - Use `cargo deny check` for RustSec advisory checks. Do not run `cargo audit` for the same lockfile.
 - Use `pinact run --fix=false --no-api` to check action pins without network access.
 - Encode the complete input in one BPE call. Independent chunks can change merges at their boundaries.
+- Compare Git metadata directory names without ASCII case so case-preserving file systems cannot bypass discovery exclusions.
