@@ -28,7 +28,7 @@
 - Avoid `serde_yml`/`libyml` because they're flagged by RUSTSEC-2025-0067/0068; prefer maintained YAML serializers (e.g. `serde_norway`).
 - For overlapping include roots, evaluate explicit exclusions relative to every matching root. Merge by file path and let `excluded = true` win.
 - For overlapping include roots, apply `.promptignore` files from the shallowest root so parent rules remain active and nested whitelist rules have deterministic precedence.
-- clap flags with an optional value (`num_args = 0..=1`) also need `default_missing_value`, otherwise the bare flag errors with "required argument was not provided".
+- clap flags with an optional value (`num_args = 0..=1`) also need `default_missing_value`, otherwise the bare flag errors with "required argument was not provided". Keep the bare-flag value consistent with the help text.
 - Use `subcommand_precedence_over_arg` when a variadic top-level option can precede a subcommand.
 - Convert trailing-slash CLI exclusions to descendant globs because discovery matches files, not directories.
 - Pass each `--exclude` pattern as a separate argument. A comma remains part of a literal pattern.

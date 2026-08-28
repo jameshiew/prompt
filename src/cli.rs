@@ -81,7 +81,7 @@ pub struct GenerateOptions {
         long,
         value_name = "OPTION",
         value_enum,
-        default_missing_value = "each",
+        default_missing_value = "final",
         num_args = 0..=1,
         help = "What to token count: nothing, the final output, or also each individual file [default: final]"
     )]
@@ -197,6 +197,19 @@ mod tests {
 
         assert!(help.contains("provide each pattern as a separate argument"));
         assert!(!help.contains("separated by commas"));
+    }
+
+    #[test]
+    fn bare_token_count_uses_final() {
+        let command = Cli::try_parse_from(["prompt", "--token-count"])
+            .expect("bare token count should parse")
+            .try_into_command()
+            .expect("default command should be valid");
+
+        let Command::Generate(generate) = command else {
+            panic!("default command should generate");
+        };
+        assert_eq!(generate.options.token_count, Some(TokenCountOptions::Final));
     }
 
     #[test]
