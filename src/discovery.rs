@@ -177,10 +177,6 @@ fn matches_exclude(path: &Path, bases: &[PathBuf], overrides: &Override) -> bool
             .is_whitelist()
 }
 
-fn canonicalize_for_promptignore(path: &Path) -> PathBuf {
-    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
-}
-
 fn promptignore_root(path: &Path) -> Option<PathBuf> {
     let metadata = std::fs::metadata(path).ok()?;
     if metadata.is_dir() {
@@ -193,7 +189,17 @@ fn promptignore_root(path: &Path) -> Option<PathBuf> {
 fn apply_promptignore(discovered: &mut [DiscoveredFile], roots: &[PathBuf]) {
     let mut matcher = PromptignoreMatcher::new();
     for entry in discovered {
-        let absolute_path = canonicalize_for_promptignore(&entry.path);
+        if entry.excluded {
+            continue;
+        }
+        let Ok(absolute_path) = entry.path.canonicalize() else {
+            warn!(
+                "Cannot canonicalize {} for .promptignore matching. The file will be excluded.",
+                entry.path.display()
+            );
+            entry.excluded = true;
+            continue;
+        };
         let root = find_root_for_path(&absolute_path, roots);
         if matcher.matches(&absolute_path, root.map(|r| r.as_path())) {
             entry.excluded = true;
@@ -575,6 +581,32 @@ mod tests {
             .find(|entry| entry.path == keep)
             .expect("keep.me should be discovered");
         assert!(!keep_entry.excluded);
+
+        Ok(())
+    }
+
+    #[test]
+    fn promptignore_fails_closed_when_a_discovered_file_moves() -> Result<()> {
+        let temp = TempDir::new();
+        let root = temp.path.join("project");
+        fs::create_dir_all(temp.path.join("alias"))?;
+        fs::create_dir_all(&root)?;
+        fs::write(root.join(".promptignore"), b"secret.txt\n")?;
+        let secret = temp.path.join("alias/../project/secret.txt");
+        fs::write(&secret, b"secret")?;
+        let canonical_root = root.canonicalize()?;
+        fs::rename(&secret, root.join("moved.txt"))?;
+        let mut discovered = [DiscoveredFile {
+            path: secret,
+            excluded: false,
+        }];
+
+        apply_promptignore(&mut discovered, &[canonical_root]);
+
+        assert!(
+            discovered[0].excluded,
+            "a canonicalization failure must exclude the file"
+        );
 
         Ok(())
     }
