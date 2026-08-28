@@ -514,26 +514,17 @@ mod tests {
     }
 
     #[test]
-    fn overlapping_directory_roots_apply_excludes_for_each_root_order() -> Result<()> {
-        let temp = TempDir::new();
-        let nested_root = temp.path.join("src");
+    fn overlapping_roots_apply_excludes_for_each_root_order() -> Result<()> {
+        let root = PathBuf::from("project");
+        let nested_root = root.join("src");
         let main_rs = nested_root.join("nested/main.rs");
-        fs::create_dir_all(main_rs.parent().expect("main.rs should have a parent"))?;
-        fs::write(&main_rs, b"fn main() {}\n")?;
+        let mut overrides = OverrideBuilder::new("");
+        overrides.add("nested/main.rs")?;
+        let overrides = overrides.build()?;
 
-        for (path, extra_path) in [
-            (temp.path.clone(), nested_root.clone()),
-            (nested_root, temp.path.clone()),
-        ] {
-            let discovered =
-                discover(path, vec![extra_path], vec!["nested/main.rs".into()], false)?;
-
-            let main_entry = discovered
-                .iter()
-                .find(|entry| entry.path == main_rs)
-                .expect("main.rs should be discovered");
+        for match_bases in [[root.clone(), nested_root.clone()], [nested_root, root]] {
             assert!(
-                main_entry.excluded,
+                matches_exclude(&main_rs, &match_bases, &overrides),
                 "exclude should match relative to the nested root"
             );
         }
