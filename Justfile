@@ -4,6 +4,9 @@ run *args:
 clippy:
     cargo clippy --all-targets -- -D warnings
 
+lint: clippy
+    actionlint
+
 test:
     cargo nextest run
 
@@ -18,7 +21,6 @@ fmt-check:
 dep-check:
     cargo machete
     cargo deny check
-    cargo audit
 
 install:
     cargo auditable install --locked --path .

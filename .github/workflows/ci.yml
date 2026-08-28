@@ -9,7 +9,11 @@ on:
       - "**/Cargo.toml"
       - Cargo.lock
       - "**.rs"
-      - .github/workflows/ci.yml
+      - ".github/workflows/*.yml"
+      - Justfile
+      - mise.lock
+      - mise.toml
+      - rustfmt.toml
   push:
     branches:
       - main
@@ -17,7 +21,11 @@ on:
       - "**/Cargo.toml"
       - Cargo.lock
       - "**.rs"
-      - .github/workflows/ci.yml
+      - ".github/workflows/*.yml"
+      - Justfile
+      - mise.lock
+      - mise.toml
+      - rustfmt.toml
 
 env:
   CARGO_TERM_COLOR: always
@@ -43,8 +51,7 @@ jobs:
           toolchain: nightly
           components: rustfmt
           cache: false
-      - uses: taiki-e/install-action@just
-      - uses: tombi-toml/setup-tombi@v1
+      - uses: jdx/mise-action@v4
       - run: just fmt-check
   check:
     runs-on: ubuntu-latest
@@ -57,9 +64,6 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: clippy
-      - uses: taiki-e/install-action@just
-      - run: just clippy
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
+      - uses: jdx/mise-action@v4
+      - run: just lint
       - run: just test

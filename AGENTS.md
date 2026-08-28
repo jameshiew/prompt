@@ -33,3 +33,4 @@
 - Convert trailing-slash CLI exclusions to descendant globs because discovery matches files, not directories.
 - Pass each `--exclude` pattern as a separate argument. A comma remains part of a literal pattern.
 - Define subcommand-specific flags on the applicable `Command` variant so clap rejects them for other commands. Keep default-command values unset until dispatch so explicit subcommands can reject top-level options.
+- Use `cargo deny check` for RustSec advisory checks. Do not run `cargo audit` for the same lockfile.
