@@ -84,7 +84,7 @@ pub async fn generate(
 
     let tree = FiletreeNode::from(&files);
 
-    let excluded = files.get_excluded();
+    let excluded_count = files.excluded_count();
 
     let output = match format {
         Format::Plaintext => {
@@ -127,12 +127,7 @@ pub async fn generate(
         let mut summary = std::io::stdout();
         write_filetree(&mut summary, tree.tty_output())?;
         write_document_separator(&mut summary)?;
-    }
-    if !excluded.is_empty() {
-        println!("Excluded {} files:", group_digits(excluded.len()));
-        println!();
-        let excluded_tree = FiletreeNode::from_paths(excluded.iter().map(PathBuf::as_path));
-        println!("{}", excluded_tree.tty_output());
+        write_excluded_count(&mut summary, excluded_count)?;
     }
     if let Some(token_count) = final_token_count {
         println!(
@@ -154,6 +149,14 @@ fn write_filetree(mut writer: impl Write, tree: String) -> Result<()> {
 fn write_document_separator(mut writer: impl Write) -> Result<()> {
     writeln!(writer, "---")?;
     writeln!(writer)?;
+    Ok(())
+}
+
+fn write_excluded_count(mut writer: impl Write, count: usize) -> Result<()> {
+    if count > 0 {
+        let noun = if count == 1 { "file" } else { "files" };
+        writeln!(writer, "Excluded {} {noun}", group_digits(count))?;
+    }
     Ok(())
 }
 
@@ -329,6 +332,26 @@ mod tests {
             .expect("file path present");
 
         assert!(doc_sep_idx < first_file_idx);
+
+        Ok(())
+    }
+
+    #[test]
+    fn excluded_summary_is_a_count_without_a_tree() -> Result<()> {
+        let mut buffer = Vec::new();
+        write_excluded_count(&mut buffer, 2)?;
+
+        assert_eq!(String::from_utf8(buffer)?, "Excluded 2 files\n");
+
+        Ok(())
+    }
+
+    #[test]
+    fn excluded_summary_is_omitted_when_none_are_excluded() -> Result<()> {
+        let mut buffer = Vec::new();
+        write_excluded_count(&mut buffer, 0)?;
+
+        assert!(buffer.is_empty());
 
         Ok(())
     }

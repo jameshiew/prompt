@@ -50,14 +50,6 @@ impl FiletreeNode {
         self.to_tree().to_string()
     }
 
-    pub fn from_paths<'a>(paths: impl IntoIterator<Item = &'a Path>) -> Self {
-        let mut root = Self::new(".", None);
-        for path in paths {
-            root.insert_full_path(path, None);
-        }
-        root
-    }
-
     fn insert_full_path(&mut self, path: &Path, meta: Option<FileMeta>) {
         // Remove leading "./" since the root node is the "."
         let path = strip_dot_prefix(path);

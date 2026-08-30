@@ -189,18 +189,11 @@ impl Files {
         self.inner.len()
     }
 
-    pub fn get_excluded(&self) -> Vec<PathBuf> {
+    pub fn excluded_count(&self) -> usize {
         self.inner
             .iter()
-            .filter_map(|entry| {
-                let (_, info) = entry.pair();
-                if info.meta.is_excluded() {
-                    Some(info.meta.path.to_owned())
-                } else {
-                    None
-                }
-            })
-            .collect()
+            .filter(|entry| entry.value().meta.is_excluded())
+            .count()
     }
 }
 
