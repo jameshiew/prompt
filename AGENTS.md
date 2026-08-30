@@ -38,3 +38,4 @@
 - Encode the complete input in one BPE call. Independent chunks can change merges at their boundaries.
 - Compare Git metadata directory names without ASCII case so case-preserving file systems cannot bypass discovery exclusions.
 - Exclude a discovered path if canonicalization for `.promptignore` matching fails. This prevents a race from bypassing ignore rules.
+- Reject invalid UTF-8 with a path-aware error. Do not replace invalid bytes with lossy text.

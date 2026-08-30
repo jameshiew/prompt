@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -72,8 +71,9 @@ impl FileInfo {
                 utf8: None,
             });
         };
-        let text = String::from_utf8_lossy(&buffer);
-        let content = annotate_line_numbers(text);
+        let text = String::from_utf8(buffer)
+            .with_context(|| format!("file {path:?} contains invalid UTF-8"))?;
+        let content = annotate_line_numbers(&text);
         let meta = if count_tokens {
             let tokens = tokenize(&content);
             FileMeta {
@@ -197,7 +197,7 @@ impl Files {
     }
 }
 
-fn annotate_line_numbers(text: Cow<str>) -> String {
+fn annotate_line_numbers(text: &str) -> String {
     let line_count = text.lines().count();
     if line_count == 0 {
         return String::new();
@@ -221,7 +221,32 @@ pub fn strip_dot_prefix(path: &Path) -> &Path {
 
 #[cfg(test)]
 mod tests {
+    use std::fs as std_fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use super::*;
+
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new() -> Self {
+            let unique = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system time before unix epoch")
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!("prompt-files-test-{unique}"));
+            std_fs::create_dir_all(&path).expect("should create temp dir");
+            Self { path }
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std_fs::remove_dir_all(&self.path);
+        }
+    }
 
     fn build_file(path: &str) -> (PathBuf, FileInfo) {
         let path = PathBuf::from(path);
@@ -266,5 +291,36 @@ mod tests {
             .expect("zeta.rs should be in serialized output");
         assert!(alpha_pos < middle_pos);
         assert!(middle_pos < zeta_pos);
+    }
+
+    #[tokio::test]
+    async fn valid_utf8_is_read_normally() -> Result<()> {
+        let temp = TempDir::new();
+        let path = temp.path.join("valid.txt");
+        std_fs::write(&path, "café\n")?;
+
+        let info = FileInfo::new(path, false, false).await?;
+
+        assert!(matches!(info.meta.read_status, ReadStatus::Read));
+        assert_eq!(info.utf8.as_deref(), Some("1 café\n"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn invalid_utf8_reports_the_file_path() -> Result<()> {
+        let temp = TempDir::new();
+        let path = temp.path.join("invalid.txt");
+        std_fs::write(&path, b"before\xffafter\n")?;
+
+        let error = FileInfo::new(path.clone(), false, false)
+            .await
+            .expect_err("invalid UTF-8 should fail");
+        let message = format!("{error:#}");
+
+        assert!(message.contains("contains invalid UTF-8"));
+        assert!(message.contains(path.to_string_lossy().as_ref()));
+
+        Ok(())
     }
 }
