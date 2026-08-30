@@ -1,3 +1,4 @@
+pub(crate) mod capabilities;
 pub(crate) mod discovery;
 pub(crate) mod files;
 pub(crate) mod fmt;

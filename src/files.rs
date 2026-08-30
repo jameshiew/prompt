@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -6,12 +7,12 @@ use dashmap::mapref::multiple::RefMulti;
 use dashmap::mapref::one::Ref;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
-use tokio::fs;
 
 use crate::discovery::DiscoveredFile;
 use crate::tokenizer::tokenize;
 
 const BINARY_DETECTION_BYTES: usize = 8 * 1024;
+const MAX_CONCURRENT_FILE_READS: usize = 32;
 const TEXTUAL_MIME_PREFIX: &str = "text/";
 
 fn is_probably_binary(sample: &[u8]) -> bool {
@@ -47,7 +48,12 @@ pub struct FileInfo {
 }
 
 impl FileInfo {
-    pub async fn new(path: PathBuf, excluded: bool, count_tokens: bool) -> anyhow::Result<Self> {
+    fn new(discovered: DiscoveredFile, count_tokens: bool) -> anyhow::Result<Self> {
+        let DiscoveredFile {
+            path,
+            excluded,
+            access,
+        } = discovered;
         if excluded {
             return Ok(Self {
                 meta: FileMeta {
@@ -58,8 +64,12 @@ impl FileInfo {
             });
         }
 
-        let buffer = fs::read(&path)
-            .await
+        let mut file = access
+            .context("included file should have a filesystem capability")?
+            .open()
+            .with_context(|| format!("failed to open {}", path.display()))?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)
             .with_context(|| format!("failed to read {}", path.display()))?;
         let sample_len = buffer.len().min(BINARY_DETECTION_BYTES);
         if is_probably_binary(&buffer[..sample_len]) {
@@ -156,11 +166,21 @@ impl Files {
     pub async fn read_from(discovered: Vec<DiscoveredFile>, count_tokens: bool) -> Result<Self> {
         let files = Self::default();
         let mut tasks = tokio::task::JoinSet::new();
+        let concurrency = std::thread::available_parallelism()
+            .map_or(1, |count| count.get())
+            .min(MAX_CONCURRENT_FILE_READS);
         for disc in discovered {
-            tasks.spawn(async move {
-                let info = FileInfo::new(disc.path.clone(), disc.excluded, count_tokens).await?;
-                anyhow::Ok((disc.path, info))
+            tasks.spawn_blocking(move || {
+                let path = disc.path.clone();
+                let info = FileInfo::new(disc, count_tokens)?;
+                anyhow::Ok((path, info))
             });
+            if tasks.len() >= concurrency
+                && let Some(result) = tasks.join_next().await
+            {
+                let (path, info) = result??;
+                files.insert(path, info);
+            }
         }
         while let Some(result) = tasks.join_next().await {
             let (path, info) = result??;
@@ -225,6 +245,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
+    use crate::discovery::discover;
 
     struct TempDir {
         path: PathBuf,
@@ -299,7 +320,9 @@ mod tests {
         let path = temp.path.join("valid.txt");
         std_fs::write(&path, "café\n")?;
 
-        let info = FileInfo::new(path, false, false).await?;
+        let discovered = discover(path.clone(), vec![], vec![], false)?;
+        let files = Files::read_from(discovered, false).await?;
+        let info = files.get(&path).expect("valid.txt should be read");
 
         assert!(matches!(info.meta.read_status, ReadStatus::Read));
         assert_eq!(info.utf8.as_deref(), Some("1 café\n"));
@@ -313,13 +336,45 @@ mod tests {
         let path = temp.path.join("invalid.txt");
         std_fs::write(&path, b"before\xffafter\n")?;
 
-        let error = FileInfo::new(path.clone(), false, false)
+        let discovered = discover(path.clone(), vec![], vec![], false)?;
+        let error = Files::read_from(discovered, false)
             .await
-            .expect_err("invalid UTF-8 should fail");
+            .err()
+            .expect("invalid UTF-8 should fail");
         let message = format!("{error:#}");
 
         assert!(message.contains("contains invalid UTF-8"));
         assert!(message.contains(path.to_string_lossy().as_ref()));
+
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn symlink_replacement_after_discovery_is_not_followed() -> Result<()> {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new();
+        let selected = temp.path.join("selected.txt");
+        let moved = temp.path.join("moved.txt");
+        let other = temp.path.join("other.txt");
+        std_fs::write(&selected, "selected\n")?;
+        std_fs::write(&other, "other\n")?;
+
+        let discovered = discover(selected.clone(), vec![], vec![], false)?;
+        std_fs::rename(&selected, moved)?;
+        symlink(&other, &selected)?;
+
+        let error = Files::read_from(discovered, false)
+            .await
+            .err()
+            .expect("replacement symlink should not be followed");
+        let message = format!("{error:#}");
+        assert!(
+            message.contains("failed to open"),
+            "unexpected error: {message}"
+        );
+        assert!(message.contains(selected.to_string_lossy().as_ref()));
 
         Ok(())
     }

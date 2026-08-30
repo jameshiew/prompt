@@ -1,23 +1,26 @@
 use std::collections::HashMap;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use dashmap::DashMap;
 use home::home_dir;
-use ignore::gitignore::Gitignore;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use ignore::overrides::{Override, OverrideBuilder};
 use ignore::{Match as IgnoreMatch, WalkBuilder, WalkState};
 use tracing::warn;
 
+use crate::capabilities::{CapabilityRoots, FileAccess, ambient_file_access};
 use crate::files::strip_dot_prefix;
 
 const PROMPT_HOME_OVERRIDE_ENV: &str = "PROMPT_HOME_DIR";
 
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug)]
 pub struct DiscoveredFile {
     pub path: PathBuf,
     pub excluded: bool,
+    pub(crate) access: Option<FileAccess>,
 }
 
 /// Returns a sorted [`Vec`] of [`DiscoveredFile`]s
@@ -28,7 +31,7 @@ pub fn discover(
     no_gitignore: bool,
 ) -> Result<Vec<DiscoveredFile>> {
     // Helper function to create error message for non-existent paths
-    let path_not_found_error = |path: &PathBuf| {
+    let path_not_found_error = |path: &Path| {
         anyhow::anyhow!(
             "Path '{}' does not exist. If you're using a glob pattern like '*.go', \
             note that this tool expects actual file or directory paths. \
@@ -37,37 +40,27 @@ pub fn discover(
         )
     };
 
-    if !path.exists() {
-        return Err(path_not_found_error(&path));
-    }
-
     let mut match_bases = Vec::with_capacity(1 + extra_paths.len());
     match_bases.push(path.clone());
+    match_bases.extend(extra_paths.iter().cloned());
+
+    let mut capability_roots = CapabilityRoots::default();
+    for base in &match_bases {
+        if let Err(error) = capability_roots.add(base) {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                return Err(path_not_found_error(base));
+            }
+            return Err(error).with_context(|| format!("failed to open {}", base.display()));
+        }
+    }
 
     let mut walker = WalkBuilder::new(path);
     for extra_path in &extra_paths {
-        if !extra_path.exists() {
-            return Err(path_not_found_error(extra_path));
-        }
         walker.add(extra_path);
-        match_bases.push(extra_path.clone());
     }
 
-    // Include canonicalized bases to cover situations where walker entries are absolute
-    // while the user supplied relative paths (or the other way around).
-    let mut canonical_bases = Vec::with_capacity(match_bases.len());
-    let mut promptignore_roots = Vec::with_capacity(match_bases.len());
-    for base in &match_bases {
-        if let Ok(canonical) = std::fs::canonicalize(base) {
-            if let Some(root) = promptignore_root(&canonical) {
-                promptignore_roots.push(root);
-            }
-            canonical_bases.push(canonical);
-        }
-    }
-    match_bases.extend(canonical_bases);
+    match_bases.extend(capability_roots.canonical_paths());
     let match_bases = Arc::new(match_bases);
-    let promptignore_roots = Arc::new(promptignore_roots);
     walker.hidden(false);
     // use thread heuristic from  https://github.com/BurntSushi/ripgrep/issues/2854
     walker.threads(
@@ -115,8 +108,8 @@ pub fn discover(
                     }
                     return WalkState::Continue;
                 }
-                if file_type.is_symlink() {
-                    return WalkState::Skip;
+                if !file_type.is_file() {
+                    return WalkState::Continue;
                 }
                 let stored_path = strip_dot_prefix(&path).to_owned();
                 let excluded = matches_exclude(&path, match_bases.as_slice(), &overrides);
@@ -147,9 +140,13 @@ pub fn discover(
     let discovered = Arc::try_unwrap(discovered).expect("walker should release all refs");
     let mut discovered: Vec<_> = discovered
         .into_iter()
-        .map(|(path, excluded)| DiscoveredFile { path, excluded })
+        .map(|(path, excluded)| DiscoveredFile {
+            path,
+            excluded,
+            access: None,
+        })
         .collect();
-    apply_promptignore(&mut discovered, &promptignore_roots);
+    apply_promptignore(&mut discovered, &capability_roots);
     discovered.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(discovered)
 }
@@ -177,33 +174,38 @@ fn matches_exclude(path: &Path, bases: &[PathBuf], overrides: &Override) -> bool
             .is_whitelist()
 }
 
-fn promptignore_root(path: &Path) -> Option<PathBuf> {
-    let metadata = std::fs::metadata(path).ok()?;
-    if metadata.is_dir() {
-        Some(path.to_path_buf())
-    } else {
-        path.parent().map(Path::to_path_buf)
-    }
-}
-
-fn apply_promptignore(discovered: &mut [DiscoveredFile], roots: &[PathBuf]) {
-    let mut matcher = PromptignoreMatcher::new();
+fn apply_promptignore(discovered: &mut [DiscoveredFile], capabilities: &CapabilityRoots) {
+    let roots = capabilities.promptignore_roots();
+    let mut matcher = PromptignoreMatcher::new(capabilities);
     for entry in discovered {
         if entry.excluded {
             continue;
         }
-        let Ok(absolute_path) = entry.path.canonicalize() else {
-            warn!(
-                "Cannot canonicalize {} for .promptignore matching. The file will be excluded.",
-                entry.path.display()
-            );
-            entry.excluded = true;
-            continue;
+        let (absolute_path, access) = match capabilities.resolve_file(&entry.path) {
+            Ok(Some(resolved)) => resolved,
+            Ok(None) => {
+                warn!(
+                    "Cannot resolve {} beneath an input root. The file will be excluded.",
+                    entry.path.display()
+                );
+                entry.excluded = true;
+                continue;
+            }
+            Err(error) => {
+                warn!(
+                    "Cannot resolve {} beneath its input root: {error}. The file will be excluded.",
+                    entry.path.display()
+                );
+                entry.excluded = true;
+                continue;
+            }
         };
-        let root = find_root_for_path(&absolute_path, roots);
+        let root = find_root_for_path(&absolute_path, &roots);
         if matcher.matches(&absolute_path, root.map(|r| r.as_path())) {
             entry.excluded = true;
+            continue;
         }
+        entry.access = Some(access);
     }
 }
 
@@ -214,7 +216,8 @@ fn find_root_for_path<'a>(path: &Path, roots: &'a [PathBuf]) -> Option<&'a PathB
         .min_by_key(|root| root.components().count())
 }
 
-struct PromptignoreMatcher {
+struct PromptignoreMatcher<'a> {
+    capabilities: &'a CapabilityRoots,
     directory_cache: HashMap<PathBuf, Option<Gitignore>>,
     global: Option<Gitignore>,
 }
@@ -242,9 +245,10 @@ impl PromptignoreDecision {
     }
 }
 
-impl PromptignoreMatcher {
-    fn new() -> Self {
+impl<'a> PromptignoreMatcher<'a> {
+    fn new(capabilities: &'a CapabilityRoots) -> Self {
         Self {
+            capabilities,
             directory_cache: HashMap::new(),
             global: load_global_promptignore(),
         }
@@ -276,7 +280,7 @@ impl PromptignoreMatcher {
 
     fn matcher_for_dir(&mut self, dir: &Path) -> Option<Gitignore> {
         if !self.directory_cache.contains_key(dir) {
-            let matcher = load_promptignore_from_dir(dir);
+            let matcher = load_promptignore_from_dir(dir, self.capabilities);
             self.directory_cache.insert(dir.to_path_buf(), matcher);
         }
         self.directory_cache
@@ -302,36 +306,71 @@ fn directory_chain_within(path: &Path, root: &Path) -> Vec<PathBuf> {
     chain
 }
 
-fn load_promptignore_from_dir(dir: &Path) -> Option<Gitignore> {
-    let promptignore = dir.join(".promptignore");
-    if !promptignore.exists() {
-        return None;
-    }
-    let (matcher, err) = Gitignore::new(&promptignore);
-    if let Some(err) = err {
-        warn!("Failed to parse {}: {err}", promptignore.display());
-    }
-    if matcher.is_empty() {
-        None
-    } else {
-        Some(matcher)
-    }
+fn load_promptignore_from_dir(dir: &Path, capabilities: &CapabilityRoots) -> Option<Gitignore> {
+    let access = capabilities.access_in_dir(dir, Path::new(".promptignore"))?;
+    load_promptignore(access, dir, &dir.join(".promptignore"))
 }
 
 fn load_global_promptignore() -> Option<Gitignore> {
     let home = prompt_home_dir()?;
-    let promptignore = home.join(".promptignore");
-    if !promptignore.exists() {
-        return None;
+    let (canonical_home, access) = match ambient_file_access(&home, Path::new(".promptignore")) {
+        Ok(access) => access,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(error) => {
+            warn!(
+                "Failed to open global .promptignore directory {}: {error}",
+                home.display()
+            );
+            return None;
+        }
+    };
+    let promptignore = canonical_home.join(".promptignore");
+    load_promptignore(access, &canonical_home, &promptignore)
+}
+
+fn load_promptignore(access: FileAccess, root: &Path, path: &Path) -> Option<Gitignore> {
+    let file = match access.open_following() {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(error) => {
+            warn!("Failed to open {}: {error}", path.display());
+            return None;
+        }
+    };
+
+    let mut builder = GitignoreBuilder::new(root);
+    for (index, line) in BufReader::new(file).lines().enumerate() {
+        let line_number = index.saturating_add(1);
+        let line = match line {
+            Ok(line) => line,
+            Err(error) => {
+                warn!(
+                    "Failed to read {} at line {line_number}: {error}",
+                    path.display()
+                );
+                break;
+            }
+        };
+        let line = if index == 0 {
+            line.trim_start_matches('\u{feff}')
+        } else {
+            &line
+        };
+        if let Err(error) = builder.add_line(Some(path.to_path_buf()), line) {
+            warn!(
+                "Failed to parse {} at line {line_number}: {error}",
+                path.display()
+            );
+        }
     }
-    let (matcher, err) = Gitignore::new(&promptignore);
-    if let Some(err) = err {
-        warn!("Failed to parse global {}: {err}", promptignore.display());
-    }
-    if matcher.is_empty() {
-        None
-    } else {
-        Some(matcher)
+
+    match builder.build() {
+        Ok(matcher) if !matcher.is_empty() => Some(matcher),
+        Ok(_) => None,
+        Err(error) => {
+            warn!("Failed to parse {}: {error}", path.display());
+            None
+        }
     }
 }
 
@@ -341,7 +380,7 @@ fn prompt_home_dir() -> Option<PathBuf> {
     } else {
         home_dir()?
     };
-    Some(path.canonicalize().unwrap_or(path))
+    Some(path)
 }
 
 #[cfg(test)]
@@ -484,6 +523,23 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn unix_socket_files_are_not_discovered() -> Result<()> {
+        use std::os::unix::net::UnixListener;
+
+        let temp = TempDir::new();
+        fs::create_dir_all(&temp.path)?;
+        let socket_path = temp.path.join("service.sock");
+        let _listener = UnixListener::bind(&socket_path)?;
+
+        let discovered = discover(temp.path.clone(), vec![], vec![], true)?;
+
+        assert!(discovered.iter().all(|entry| entry.path != socket_path));
+
+        Ok(())
+    }
+
     #[test]
     fn exact_file_root_can_be_excluded_by_name() -> Result<()> {
         let temp = TempDir::new();
@@ -594,14 +650,16 @@ mod tests {
         fs::write(root.join(".promptignore"), b"secret.txt\n")?;
         let secret = temp.path.join("alias/../project/secret.txt");
         fs::write(&secret, b"secret")?;
-        let canonical_root = root.canonicalize()?;
+        let mut capabilities = CapabilityRoots::default();
+        capabilities.add(&root)?;
         fs::rename(&secret, root.join("moved.txt"))?;
         let mut discovered = [DiscoveredFile {
             path: secret,
             excluded: false,
+            access: None,
         }];
 
-        apply_promptignore(&mut discovered, &[canonical_root]);
+        apply_promptignore(&mut discovered, &capabilities);
 
         assert!(
             discovered[0].excluded,

@@ -249,7 +249,6 @@ mod tests {
     use anyhow::Result;
 
     use super::*;
-    use crate::discovery::DiscoveredFile;
     use crate::tree::FiletreeNode;
 
     struct TempDir {
@@ -278,18 +277,16 @@ mod tests {
     async fn write_top_omits_excluded_files() -> Result<()> {
         let temp = TempDir::new();
         let included_path = temp.path.join("included.txt");
+        let excluded_path = temp.path.join("target/excluded.bin");
+        fs::create_dir_all(
+            excluded_path
+                .parent()
+                .expect("excluded file should have a parent"),
+        )?;
         fs::write(&included_path, b"hello")?;
+        fs::write(&excluded_path, b"excluded")?;
 
-        let discovered = vec![
-            DiscoveredFile {
-                path: included_path.clone(),
-                excluded: false,
-            },
-            DiscoveredFile {
-                path: temp.path.join("target/excluded.bin"),
-                excluded: true,
-            },
-        ];
+        let discovered = discover(temp.path.clone(), vec![], vec!["target/**".into()], false)?;
 
         let files = Files::read_from(discovered, true).await?;
 
@@ -312,10 +309,7 @@ mod tests {
         let included_path = temp.path.join("included.txt");
         fs::write(&included_path, b"hello")?;
 
-        let discovered = vec![DiscoveredFile {
-            path: included_path.clone(),
-            excluded: false,
-        }];
+        let discovered = discover(included_path.clone(), vec![], vec![], false)?;
 
         let files = Files::read_from(discovered, false).await?;
         let tree = FiletreeNode::from(&files);
