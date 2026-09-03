@@ -218,17 +218,17 @@ impl Files {
 }
 
 fn annotate_line_numbers(text: &str) -> String {
-    let line_count = text.lines().count();
-    if line_count == 0 {
+    if text.is_empty() {
         return String::new();
     }
 
+    let line_count = text.split('\n').count();
     let width = line_count.ilog10() as usize + 1;
 
     let mut numbered = String::new();
-    for (i, line) in text.lines().enumerate() {
+    for (i, line) in text.split('\n').enumerate() {
+        let line = line.strip_suffix('\r').unwrap_or(line);
         let line_num = i + 1;
-        // Right-align the line number within the given width
         numbered.push_str(&format!("{line_num:>width$} {line}\n"));
     }
 
@@ -314,6 +314,36 @@ mod tests {
         assert!(middle_pos < zeta_pos);
     }
 
+    #[test]
+    fn annotate_line_numbers_distinguishes_missing_final_newline() {
+        let without_newline = annotate_line_numbers("same content");
+        let with_newline = annotate_line_numbers("same content\n");
+
+        assert_ne!(without_newline, with_newline);
+        assert_eq!(
+            without_newline.lines().collect::<Vec<_>>(),
+            vec!["1 same content"]
+        );
+        let with_lines = with_newline.lines().collect::<Vec<_>>();
+        assert_eq!(with_lines.len(), 2);
+        assert!(with_lines[0].ends_with("same content"));
+        assert_eq!(with_lines[1], "2 ");
+    }
+
+    #[test]
+    fn annotate_line_numbers_handles_empty_input() {
+        assert_eq!(annotate_line_numbers(""), "");
+    }
+
+    #[test]
+    fn annotate_line_numbers_preserves_multiple_trailing_newlines() {
+        let output = annotate_line_numbers("same content\n\n");
+        let lines = output.lines().collect::<Vec<_>>();
+        assert_eq!(lines.len(), 3);
+        assert_eq!(lines[1].trim_start(), "2 ");
+        assert_eq!(lines[2].trim_start(), "3 ");
+    }
+
     #[tokio::test]
     async fn valid_utf8_is_read_normally() -> Result<()> {
         let temp = TempDir::new();
@@ -325,7 +355,7 @@ mod tests {
         let info = files.get(&path).expect("valid.txt should be read");
 
         assert!(matches!(info.meta.read_status, ReadStatus::Read));
-        assert_eq!(info.utf8.as_deref(), Some("1 café\n"));
+        assert_eq!(info.utf8.as_deref(), Some("1 café\n2 \n"));
 
         Ok(())
     }
