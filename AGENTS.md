@@ -40,3 +40,4 @@
 - Exclude a discovered path if canonicalization for `.promptignore` matching fails. This prevents a race from bypassing ignore rules.
 - Reject invalid UTF-8 with a path-aware error. Do not replace invalid bytes with lossy text.
 - Establish `cap_std::fs::Dir` capabilities at user-selected and global-ignore roots. Use no-follow, nonblocking opens for selected files, bound blocking-read concurrency, and retain the path-based `ignore` walker.
+- Treat empty environment-directory overrides as unset so they cannot resolve relative to the current working directory.

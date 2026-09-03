@@ -375,7 +375,9 @@ fn load_promptignore(access: FileAccess, root: &Path, path: &Path) -> Option<Git
 }
 
 fn prompt_home_dir() -> Option<PathBuf> {
-    let path = if let Some(override_dir) = std::env::var_os(PROMPT_HOME_OVERRIDE_ENV) {
+    let path = if let Some(override_dir) = std::env::var_os(PROMPT_HOME_OVERRIDE_ENV)
+        && !override_dir.is_empty()
+    {
         PathBuf::from(override_dir)
     } else {
         home_dir()?
@@ -385,6 +387,7 @@ fn prompt_home_dir() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsStr;
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -421,6 +424,11 @@ mod tests {
 
     impl EnvOverride {
         fn set_path(key: &'static str, value: &Path) -> Self {
+            unsafe { std::env::set_var(key, value) };
+            Self { key }
+        }
+
+        fn set(key: &'static str, value: &OsStr) -> Self {
             unsafe { std::env::set_var(key, value) };
             Self { key }
         }
@@ -776,6 +784,13 @@ mod tests {
         assert!(!text_entry.excluded);
 
         Ok(())
+    }
+
+    #[test]
+    fn empty_home_override_is_unset() {
+        let _guard = EnvOverride::set(PROMPT_HOME_OVERRIDE_ENV, OsStr::new(""));
+
+        assert_eq!(prompt_home_dir(), home_dir());
     }
 
     #[cfg(unix)]
